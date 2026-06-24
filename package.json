@@ -1,0 +1,21 @@
+{
+  "name": "cellab-tuxtla",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.5.3",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "concurrently -n WEB,API -c cyan,green \"npm run dev -w @cellab/web\" \"npm run dev -w @cellab/api\"",
+    "dev:web": "npm run dev -w @cellab/web",
+    "dev:api": "npm run dev -w @cellab/api",
+    "build": "npm run build -w @cellab/web && npm run build -w @cellab/api",
+    "typecheck": "npm run typecheck -w @cellab/web && npm run typecheck -w @cellab/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
