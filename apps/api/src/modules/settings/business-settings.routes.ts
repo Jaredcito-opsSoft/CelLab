@@ -21,7 +21,9 @@ const inputSchema = z.object({
   ticketMessage: z.string().trim().max(1000).nullable().optional(),
   warrantyMessage: z.string().trim().max(2000).nullable().optional(),
   currency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
-  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Usa un color hexadecimal de seis dÃ­gitos.'),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Usa un color hexadecimal de seis dígitos.'),
+  requireOpenCashForMoneyOperations: z.boolean(),
+  timezone: z.string().trim().min(3).max(80).default('America/Mexico_City'),
 });
 
 businessSettingsRouter.get('/', asyncHandler(async (_request, response) => {
@@ -37,3 +39,4 @@ businessSettingsRouter.patch('/', requireRole('admin'), asyncHandler(async (requ
   const [item] = await db.update(businessSettings).set({ ...input, updatedAt: new Date() }).where(eq(businessSettings.id, current.id)).returning();
   response.json({ item });
 }));
+

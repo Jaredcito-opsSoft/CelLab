@@ -1,4 +1,4 @@
-.panel-root,.panel-login{--ops-paper:#eef1ed;--ops-ink:#17201d;--ops-blue:#185a70;--ops-orange:#f06432;--ops-line:#bdc8c3;--ops-white:#fff;position:relative;z-index:11;min-height:100vh;background:var(--ops-paper);color:var(--ops-ink)}
+﻿.panel-root,.panel-login{--ops-paper:#eef1ed;--ops-ink:#17201d;--ops-blue:#185a70;--ops-orange:#f06432;--ops-line:#bdc8c3;--ops-white:#fff;position:relative;z-index:11;min-height:100vh;background:var(--ops-paper);color:var(--ops-ink)}
 .panel-root button,.panel-root input,.panel-root select,.panel-root textarea,.panel-login button,.panel-login input{font:inherit}
 .panel-login{display:grid;place-items:center;padding:28px;background:linear-gradient(90deg,#0c252d 0 38%,var(--ops-paper) 38%)}
 .login-card{width:min(520px,100%);padding:clamp(38px,6vw,68px);background:#fff;border:1px solid var(--ops-ink);box-shadow:14px 14px 0 rgba(23,32,29,.2)}
@@ -60,3 +60,455 @@
 @media(max-width:700px){.product-pick-grid{grid-template-columns:1fr 1fr}.sale-history-head{display:none}.sale-history-row{grid-template-columns:1fr 1fr}.sale-history-row>em{justify-self:start}.print-ticket{padding:30px 24px}.ticket-meta{grid-template-columns:1fr}.ticket-meta span:nth-child(even){text-align:left}}
 @media(max-width:430px){.product-pick-grid{grid-template-columns:1fr}.checkout-fields{grid-template-columns:1fr}}
 @media print{body::before,.panel-sidebar,.panel-workspace>header,.sale-actions-panel{display:none!important}.panel-root{display:block!important;min-height:0;background:#fff}.panel-workspace{padding:0!important}.sale-detail-layout{display:block}.print-ticket{width:80mm;min-height:0;margin:0;padding:8mm 5mm;box-shadow:none}.print-ticket h1{font-size:20px}.ticket-void{font-size:30px}@page{size:80mm auto;margin:0}}
+
+/* Hito 4: reparación completa */
+.repair-detail-layout { display: grid; gap: 22px; }
+.repair-command { padding: 22px; display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center; border: 1px solid var(--ops-line); background: var(--ops-card); box-shadow: var(--ops-shadow-soft); }
+.repair-command__title h2 { margin: 8px 0 4px; font-size: clamp(28px, 4vw, 46px); letter-spacing: -.06em; }
+.repair-command__title p { margin: 0; color: var(--ops-muted); }
+.repair-command__actions { display: flex; gap: 10px; justify-content: flex-end; }
+.repair-detail-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: 18px; align-items: start; }
+.repair-editor-card, .repair-money-card, .repair-items-card, .repair-events-card { padding: 22px; border: 1px solid var(--ops-line); background: var(--ops-card); box-shadow: var(--ops-shadow-soft); }
+.repair-editor-card { grid-row: span 3; }
+.repair-card-heading, .compact-form h3, .event-form h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; }
+.repair-card-heading svg, .compact-form svg, .event-form svg { width: 20px; color: var(--ops-blue); }
+.repair-card-heading h3, .compact-form h3, .event-form h3 { margin: 0; }
+.check-line { min-height: 42px; flex-direction: row !important; align-items: center; gap: 10px; color: var(--ops-ink); font-weight: 700; }
+.check-line input { width: auto !important; }
+.repair-balance { margin-bottom: 20px; display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: baseline; }
+.repair-balance span { color: var(--ops-muted); font: 700 10px var(--ops-mono); letter-spacing: .08em; text-transform: uppercase; }
+.repair-balance b, .repair-balance strong { text-align: right; font-size: 18px; }
+.repair-balance strong { color: var(--ops-blue); font-size: 26px; }
+.compact-form { padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+.compact-form button, .event-form button { min-height: 42px; border: 0; background: var(--ops-blue); color: #fff; font-weight: 800; cursor: pointer; }
+.repair-list { margin-top: 18px; display: grid; gap: 10px; }
+.repair-list article { padding: 13px; display: grid; gap: 4px; border: 1px solid var(--ops-line); background: color-mix(in srgb, var(--ops-blue) 4%, #fff); }
+.repair-list b { font-size: 14px; }
+.repair-list span, .repair-list small { color: var(--ops-muted); font-size: 12px; }
+.repair-list button { justify-self: start; border: 0; background: transparent; color: #b7422f; font-weight: 800; cursor: pointer; }
+.repair-events-card { grid-column: 2; }
+.event-form { padding: 0; margin-bottom: 18px; display: grid; gap: 12px; }
+.repair-timeline { display: grid; gap: 10px; }
+.repair-timeline article { position: relative; padding: 14px 14px 14px 24px; border-left: 2px solid var(--ops-blue); background: color-mix(in srgb, var(--ops-blue) 4%, #fff); }
+.repair-timeline span { color: var(--ops-muted); font: 700 10px var(--ops-mono); text-transform: uppercase; }
+.repair-timeline b { display: block; margin: 5px 0; }
+.repair-timeline p { margin: 0 0 4px; color: var(--ops-muted); }
+.repair-timeline small { color: var(--ops-blue); font-weight: 800; }
+.repair-print-note { display: none; }
+.signature-line { margin-top: 32px; padding-top: 12px; border-top: 1px solid #111; text-align: center; font-size: 12px; }
+
+@media (max-width: 1100px) { .repair-detail-grid { grid-template-columns: 1fr; } .repair-editor-card, .repair-events-card { grid-column: auto; grid-row: auto; } .repair-command { grid-template-columns: 1fr; } .repair-command__actions { justify-content: flex-start; } }
+
+@media print {
+  body:has(.repair-print-note) .panel-sidebar,
+  body:has(.repair-print-note) .panel-workspace > header,
+  body:has(.repair-print-note) .repair-command,
+  body:has(.repair-print-note) .repair-detail-grid,
+  body:has(.repair-print-note) .cw-fab,
+  body:has(.repair-print-note) .cw-window { display: none !important; }
+  body:has(.repair-print-note) .panel-root,
+  body:has(.repair-print-note) .panel-workspace { display: block; background: #fff; padding: 0; }
+  .repair-print-note { width: 80mm; margin: 0 auto; padding: 6mm; display: block; color: #111; background: #fff; font-family: Arial, sans-serif; }
+  .repair-print-note header { text-align: center; border-bottom: 1px dashed #111; padding-bottom: 10px; margin-bottom: 10px; }
+  .repair-print-note img { max-width: 42px; max-height: 42px; object-fit: contain; }
+  .repair-print-note h1 { margin: 0; font-size: 18px; }
+  .repair-print-note h2 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; }
+  .repair-print-note p, .repair-print-note address, .repair-print-note span { margin: 0 0 5px; font-size: 11px; line-height: 1.35; font-style: normal; }
+  .note-meta { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed #111; }
+  @page { size: 80mm auto; margin: 0; }
+}
+
+/* Hito 5.1 — inventario operativo y economía de taller */
+.inventory-view{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:20px;align-items:start}
+.inventory-control-card{background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:24px;padding:22px;box-shadow:0 18px 50px rgba(15,23,42,.08)}
+.inventory-action-form{margin-top:18px}
+.inventory-readonly{margin-top:16px;color:#64748b;background:#f8fafc;border:1px dashed rgba(100,116,139,.35);border-radius:16px;padding:14px}
+.inventory-movement-panel{padding:18px}
+.movement-row{grid-template-columns:1.4fr .75fr .85fr .7fr;gap:14px;align-items:center}
+.movement-row b{display:flex;align-items:center;gap:8px}
+.movement-row svg{width:16px;height:16px;color:var(--ops-blue,#185a70)}
+.repair-economics{display:grid;gap:8px;margin:14px 0;padding:14px;border-radius:18px;background:linear-gradient(135deg,rgba(24,90,112,.08),rgba(15,23,42,.04));border:1px solid rgba(24,90,112,.12)}
+.repair-economics span{display:flex;justify-content:space-between;gap:12px;color:#475569;font-size:.86rem}
+.repair-economics b,.repair-economics strong{color:#0f172a}
+.repair-list article.voided-record{opacity:.62;background:repeating-linear-gradient(135deg,rgba(148,163,184,.12),rgba(148,163,184,.12) 8px,rgba(148,163,184,.2) 8px,rgba(148,163,184,.2) 16px)}
+.product-row b small{display:block;font-weight:600;color:#64748b;margin-top:3px}
+@media (max-width:1100px){.inventory-view{grid-template-columns:1fr}.movement-row{grid-template-columns:1fr}}
+/* Hito 6 — Dashboard / Panel operativo UI/UX senior */
+.panel-root{--ops-canvas:#f4f1ea;--ops-card:#fffdf8;--ops-card-strong:#ffffff;--ops-muted:#62706b;--ops-shadow-soft:0 18px 48px rgba(18,30,26,.09);--ops-shadow-crisp:0 1px 0 rgba(255,255,255,.65) inset,0 22px 60px rgba(18,30,26,.11);background:radial-gradient(circle at 82% 8%,rgba(24,90,112,.12),transparent 28%),linear-gradient(180deg,#f7f4ed,#eef2ee 72%)}
+.panel-sidebar{background:linear-gradient(180deg,#071d22,#102b32 58%,#0d2429);box-shadow:18px 0 60px rgba(10,31,35,.16)}
+.panel-sidebar::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:28px 28px;mask-image:linear-gradient(#000,transparent 82%);pointer-events:none}
+.panel-sidebar>*{position:relative}.panel-brand>span{border-radius:14px;background:rgba(158,215,193,.08);box-shadow:0 0 24px rgba(158,215,193,.12)}
+.panel-sidebar nav{padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:24px;background:rgba(255,255,255,.035);backdrop-filter:blur(10px)}
+.panel-sidebar nav button{border-radius:15px;transition:background .18s ease,color .18s ease,transform .18s ease}.panel-sidebar nav button:hover{transform:translateX(2px)}.panel-sidebar nav button.active{box-shadow:none;background:linear-gradient(135deg,rgba(240,100,50,.22),rgba(158,215,193,.11));color:#fff}
+.panel-workspace>header{position:sticky;top:0;z-index:8;margin:-20px -24px 34px;padding:24px;border:1px solid rgba(23,32,29,.08);border-radius:0 0 28px 28px;background:rgba(244,241,234,.82);backdrop-filter:blur(18px);box-shadow:0 12px 34px rgba(18,30,26,.08)}
+.panel-workspace h1{text-transform:none;font-weight:800;letter-spacing:-.055em;color:#12221e}.panel-workspace>header h1::after{content:'';display:block;width:56px;height:3px;margin-top:14px;border-radius:99px;background:linear-gradient(90deg,var(--ops-orange),var(--ops-blue))}
+.panel-search{border-radius:18px;border-color:rgba(23,32,29,.12);box-shadow:0 12px 28px rgba(18,30,26,.06)}
+.panel-alert,.panel-loading{border-radius:18px;border-color:rgba(240,100,50,.22);box-shadow:var(--ops-shadow-soft)}
+.hito6-dashboard{display:grid;grid-template-columns:1fr;gap:20px}.dashboard-command{position:relative;min-height:260px;padding:clamp(26px,4vw,42px);display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,340px);gap:28px;align-items:end;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:34px;background:radial-gradient(circle at 78% 18%,rgba(82,184,178,.24),transparent 28%),radial-gradient(circle at 18% 82%,rgba(240,100,50,.2),transparent 28%),linear-gradient(135deg,#071d22,#12313a 62%,#07171b);color:#eef8f4;box-shadow:0 28px 70px rgba(10,31,35,.28)}
+.dashboard-command::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(90deg,#000,transparent 88%);opacity:.55}.dashboard-command>*{position:relative}.dashboard-command h2{max-width:760px;margin:0 0 16px;font-size:clamp(36px,5.4vw,76px);line-height:.92;letter-spacing:-.075em}.dashboard-command p:not(.panel-eyebrow){max-width:620px;margin:0;color:#b8c9c7;line-height:1.65}.dashboard-command .panel-eyebrow{color:#9ed7c1}
+.command-total{padding:24px;border:1px solid rgba(255,255,255,.16);border-radius:26px;background:rgba(255,255,255,.08);box-shadow:0 20px 50px rgba(0,0,0,.18);backdrop-filter:blur(14px)}.command-total span,.command-total small{display:block;color:#b8c9c7;font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}.command-total strong{display:block;margin:12px 0;font-size:clamp(34px,4vw,54px);line-height:1;color:#fff;letter-spacing:-.06em}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}.stat-card{position:relative;min-height:174px;padding:20px;display:flex;flex-direction:column;gap:8px;overflow:hidden;border:1px solid rgba(23,32,29,.1);border-radius:26px;background:var(--ops-card-strong);box-shadow:var(--ops-shadow-soft)}.stat-card::after{content:'';position:absolute;right:-42px;bottom:-50px;width:110px;height:110px;border-radius:50%;background:rgba(24,90,112,.08)}.stat-card .stat-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:14px;background:rgba(24,90,112,.09);color:var(--ops-blue)}.stat-card svg{width:19px}.stat-card small{color:var(--ops-muted);font:800 9px var(--mono);letter-spacing:.08em;text-transform:uppercase}.stat-card b{margin-top:auto;font-size:clamp(26px,3vw,42px);line-height:1;letter-spacing:-.055em}.stat-card p{margin:0;color:#697671;font-size:13px;line-height:1.35}.stat-card.stat-warning .stat-icon{background:#ffe5d8;color:#a84629}.stat-card.stat-good .stat-icon{background:#dcf2e8;color:#17614e}
+.quick-actions-panel,.recent-panel,.utility-panel{border:1px solid rgba(23,32,29,.1);border-radius:30px;background:rgba(255,253,248,.78);box-shadow:var(--ops-shadow-soft)}.quick-actions-panel{padding:24px}.quick-actions-panel h3,.recent-panel h3,.utility-panel h2{margin:0;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.05em}.quick-action-grid{margin-top:18px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}.quick-action{min-height:132px;padding:15px;display:grid;gap:8px;align-content:start;border:1px solid rgba(23,32,29,.09);border-radius:22px;background:#fff;color:#17201d;text-align:left;cursor:pointer;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}.quick-action:hover{transform:translateY(-3px);border-color:rgba(24,90,112,.45);box-shadow:0 18px 40px rgba(18,30,26,.11)}.quick-action>span{width:34px;height:34px;display:grid;place-items:center;border-radius:12px;background:rgba(24,90,112,.08);color:var(--ops-blue)}.quick-action svg{width:17px}.quick-action>b{line-height:1.1}.quick-action small{color:#6b7772;line-height:1.35}.quick-action>svg{margin-top:auto;justify-self:end;color:var(--ops-orange)}
+.activity-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}.recent-panel{padding:20px;min-width:0}.activity-row{width:100%;min-height:72px;margin-top:12px;padding:13px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;border:1px solid rgba(23,32,29,.08);border-radius:18px;background:#fff;color:#17201d;text-align:left;text-decoration:none}.activity-row:is(button){cursor:pointer}.activity-row:is(button):hover{border-color:rgba(24,90,112,.36);box-shadow:0 10px 30px rgba(18,30,26,.08)}.activity-row span{display:grid;gap:4px;min-width:0}.activity-row small{overflow:hidden;color:#6a7671;text-overflow:ellipsis;white-space:nowrap}.activity-row strong{font:800 12px var(--mono);white-space:nowrap}.status-badge{width:max-content;padding:6px 8px;border-radius:999px;background:#e8eeeb;color:#4d5b56;font:800 9px var(--mono);font-style:normal;letter-spacing:.04em;text-transform:uppercase}.status-ready,.status-completed{background:#dcefe7;color:#17614e}.status-cancelled{background:#f3ddd7;color:#943b28}.status-in_repair,.status-testing{background:#dff0f5;color:#185a70}.status-awaiting_authorization,.status-diagnosis{background:#fff0cf;color:#866018}.status-received{background:#ece9ff;color:#5441a8}
+.dashboard-empty,.utility-panel{min-height:360px;padding:clamp(26px,4vw,46px);display:grid;place-content:center;gap:16px;text-align:center}.dashboard-empty svg{width:42px;margin:0 auto;color:var(--ops-blue)}.utility-panel{grid-template-columns:minmax(0,1fr) auto;place-content:stretch;align-items:center;text-align:left}.utility-panel p{max-width:680px;color:#68746f;line-height:1.6}.ghost-link{display:inline-flex;align-items:center;gap:8px;min-height:46px;text-decoration:none;box-shadow:none;border:1px solid rgba(24,90,112,.28);background:rgba(24,90,112,.08);color:var(--ops-blue)}.ghost-link:hover{background:rgba(24,90,112,.14)}.report-preview{display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px}.report-preview article{padding:18px;border:1px solid rgba(23,32,29,.1);border-radius:22px;background:#fff}.report-preview span,.report-preview small{display:block;color:#6f7c76;font:800 9px var(--mono);text-transform:uppercase}.report-preview b{display:block;margin:10px 0;font-size:28px;letter-spacing:-.05em}
+@media(max-width:1280px){.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.quick-action-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.activity-grid{grid-template-columns:1fr 1fr}.activity-grid .recent-panel:last-child{grid-column:1/-1}}
+@media(max-width:900px){.dashboard-command{grid-template-columns:1fr}.kpi-grid{grid-template-columns:1fr 1fr}.quick-action-grid{grid-template-columns:1fr 1fr}.activity-grid{grid-template-columns:1fr}.activity-grid .recent-panel:last-child{grid-column:auto}.utility-panel{grid-template-columns:1fr}.report-preview{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.panel-workspace>header{position:relative;margin:0 0 24px;padding:0 0 20px;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}.dashboard-command{min-height:0;padding:26px;border-radius:26px}.dashboard-command::before{opacity:.3}.command-total{padding:18px}.kpi-grid,.quick-action-grid,.report-preview{grid-template-columns:1fr}.quick-action{min-height:98px;grid-template-columns:auto 1fr auto;align-items:center}.quick-action small{grid-column:2}.quick-action>svg{grid-column:3;grid-row:1 / span 2}.activity-row{grid-template-columns:1fr auto}.activity-row .status-badge{grid-column:1/-1}.panel-sidebar nav{overflow:auto;justify-content:flex-start}.panel-sidebar nav button{flex:0 0 auto}.panel-sidebar nav button svg{width:17px}}
+@media(prefers-reduced-motion:reduce){.quick-action,.activity-row,.panel-sidebar nav button{transition:none}.quick-action:hover,.activity-row:hover,.panel-sidebar nav button:hover{transform:none}}
+/* Hito 7 — reportes operativos */
+.reports-workbench{display:grid;gap:18px}.reports-hero{padding:clamp(22px,3vw,34px);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px;align-items:end;border:1px solid rgba(23,32,29,.1);border-radius:30px;background:linear-gradient(135deg,rgba(255,253,248,.92),rgba(238,246,243,.86));box-shadow:var(--ops-shadow-soft)}.reports-hero h2{margin:0 0 10px;font-size:clamp(28px,4vw,54px);letter-spacing:-.06em}.reports-hero p:not(.panel-eyebrow){max-width:620px;margin:0;color:#68746f;line-height:1.6}.report-filter{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}.report-filter label{display:grid;gap:7px;color:#52605b;font:800 9px var(--mono);letter-spacing:.06em;text-transform:uppercase}.report-filter input{min-height:44px;padding:10px;border:1px solid rgba(23,32,29,.12);border-radius:14px;background:#fff;color:#17201d}.report-preview--live{grid-template-columns:repeat(4,minmax(0,1fr))}.report-movements{padding:22px}.report-movements .activity-row{grid-template-columns:minmax(0,1fr) auto}@media(max-width:980px){.reports-hero{grid-template-columns:1fr}.report-filter,.report-preview--live{grid-template-columns:1fr 1fr}}@media(max-width:620px){.report-filter,.report-preview--live{grid-template-columns:1fr}}
+/* Hito 8 — caja y corte */
+.cash-workbench{display:grid;gap:20px}.cash-hero,.cash-open-card,.cash-current,.cash-history{border:1px solid rgba(23,32,29,.1);border-radius:30px;background:rgba(255,253,248,.86);box-shadow:var(--ops-shadow-soft)}.cash-hero{padding:clamp(24px,4vw,42px);display:flex;align-items:end;justify-content:space-between;gap:20px;background:radial-gradient(circle at 88% 20%,rgba(240,100,50,.14),transparent 26%),linear-gradient(135deg,#fffdf8,#eef6f3)}.cash-hero h2{margin:0 0 10px;font-size:clamp(34px,5vw,68px);letter-spacing:-.07em}.cash-hero p:not(.panel-eyebrow){max-width:680px;margin:0;color:#68746f;line-height:1.6}.cash-open-card{padding:28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,420px);gap:24px;align-items:center}.cash-open-card svg{width:38px;height:38px;color:var(--ops-blue)}.cash-open-card h3{margin:14px 0 8px;font-size:clamp(26px,3vw,42px);letter-spacing:-.05em}.cash-open-card p{color:#68746f;line-height:1.6}.cash-readonly{display:flex;align-items:center;gap:10px;padding:16px;border-radius:18px;background:#fff3e8;color:#8a4a1d}.cash-current{padding:22px;display:grid;gap:18px}.cash-status-card{padding:20px;border-radius:24px;background:linear-gradient(135deg,#102b32,#173b42);color:#fff}.cash-status-card span{font:800 10px var(--mono);text-transform:uppercase;color:#9ed7c1}.cash-status-card h3{margin:9px 0;font-size:clamp(24px,3vw,38px);letter-spacing:-.05em}.cash-status-card p,.cash-status-card small{color:#c7d7d3}.cash-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cash-kpi-grid article,.cash-range-card{padding:18px;border:1px solid rgba(23,32,29,.08);border-radius:22px;background:#fff}.cash-kpi-grid span,.cash-range-card>span{display:block;color:#64706b;font:800 9px var(--mono);letter-spacing:.08em;text-transform:uppercase}.cash-kpi-grid b,.cash-range-card>b{display:block;margin:10px 0;font-size:clamp(24px,3vw,36px);letter-spacing:-.06em}.cash-kpi-grid small,.cash-range-card small{color:#6f7b76}.cash-actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.cash-actions-grid .compact-form{padding:20px;border:1px solid rgba(23,32,29,.08);border-radius:24px;background:#fff}.close-form p{margin:0;color:#697671;line-height:1.5}.close-form>strong{font-size:34px;letter-spacing:-.05em}.cash-movements{padding:20px}.cash-movement-row{grid-template-columns:minmax(0,1fr) auto auto}.cash-movement-row em{font:800 9px var(--mono);font-style:normal;text-transform:uppercase;color:#60716b}.plus{color:#17614e!important}.minus{color:#a6402a!important}.cash-summary-ranges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cash-range-card div{margin-top:14px;display:grid;gap:6px}.cash-range-card em{font-style:normal;color:#60716b;font-size:12px}.cash-history{padding:22px}.cash-session-head,.cash-session-row{display:grid;grid-template-columns:1.2fr 1fr .8fr .8fr .8fr .6fr;gap:12px;align-items:center}.cash-session-head{padding:10px 12px;color:#67736e;font:800 9px var(--mono);text-transform:uppercase}.cash-session-row{width:100%;min-height:68px;padding:12px;border:0;border-top:1px solid rgba(23,32,29,.08);background:#fff;color:#17201d;text-align:left;cursor:pointer}.cash-session-row:hover{background:#f8fbf8}.cash-session-row em{font-style:normal;font-weight:800}.cash-print{display:none}
+@media(max-width:1200px){.cash-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.cash-summary-ranges{grid-template-columns:1fr}.cash-session-head,.cash-session-row{grid-template-columns:1fr 1fr 1fr}.cash-session-head span:nth-child(n+4){display:none}.cash-session-row>*:nth-child(n+4){justify-self:start}}
+@media(max-width:780px){.cash-hero,.cash-open-card{display:grid;grid-template-columns:1fr}.cash-kpi-grid,.cash-actions-grid{grid-template-columns:1fr}.cash-session-head{display:none}.cash-session-row{grid-template-columns:1fr}}
+@media print{body:has(.cash-print) .panel-sidebar,body:has(.cash-print) .panel-workspace>header,body:has(.cash-print) .cash-workbench>*:not(.cash-print),body:has(.cash-print) .cw-fab,body:has(.cash-print) .cw-window{display:none!important}body:has(.cash-print) .panel-root,body:has(.cash-print) .panel-workspace{display:block;background:#fff;padding:0!important}.cash-print{display:block;width:80mm;margin:0 auto;padding:6mm;color:#111;background:#fff;font-family:Arial,sans-serif}.cash-print header{text-align:center;border-bottom:1px dashed #111;padding-bottom:8px;margin-bottom:10px}.cash-print img{max-width:42px;max-height:42px}.cash-print h1{margin:0;font-size:18px}.cash-print h2{margin:12px 0 6px;font-size:12px;text-transform:uppercase}.cash-print p,.cash-print address{margin:0 0 5px;font-size:10.5px;line-height:1.35;font-style:normal}.cash-print footer{margin-top:12px;border-top:1px dashed #111;padding-top:8px}@page{size:80mm auto;margin:0}}
+@media(max-width:700px){.data-table{overflow-x:auto;-webkit-overflow-scrolling:touch}}
+.form-info-tip{font-size:.8rem;color:#ff6b6b;margin-top:4px}
+
+
+
+/* Hito 9A-R.1 — corrección tipográfica y legibilidad del panel
+   Alcance: solo suaviza escala, contraste y desbordes. No cambia estructura ni lógica. */
+.panel-root,
+.panel-login {
+  font-size: 15px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+.panel-root :is(h1, h2, h3, h4, p, span, small, b, strong, label, button, input, textarea, select) {
+  overflow-wrap: anywhere;
+}
+
+.panel-workspace {
+  padding: clamp(22px, 3vw, 42px);
+}
+
+.panel-workspace > header {
+  align-items: center;
+  gap: 18px;
+  margin: -12px -14px 28px;
+  padding: 18px clamp(16px, 2.4vw, 24px);
+}
+
+.panel-workspace h1 {
+  max-width: 100%;
+  color: #14231f;
+  font-family: var(--body), Arial, sans-serif;
+  font-size: clamp(1.7rem, 2.7vw, 2.65rem);
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -.035em;
+  text-transform: none;
+  text-wrap: balance;
+}
+
+.panel-workspace > header h1::after {
+  width: 44px;
+  height: 2px;
+  margin-top: 10px;
+}
+
+.panel-eyebrow,
+.login-mark,
+.role-chip,
+.data-head,
+.sale-history-head,
+.cash-session-head,
+.report-filter label,
+.cash-kpi-grid span,
+.cash-range-card > span,
+.report-preview span,
+.report-preview small,
+.product-pick > span,
+.receipt-heading,
+.checkout-form label,
+.cancel-sale-form label,
+.repair-ticket label,
+.ticket-folio small,
+.status-dot,
+.status-badge {
+  letter-spacing: .045em;
+  line-height: 1.35;
+}
+
+.panel-sidebar button {
+  min-height: 42px;
+  color: #c7d4d0;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.panel-sidebar nav button:hover,
+.panel-sidebar nav button.active {
+  color: #fff;
+}
+
+.panel-brand b {
+  color: #fff;
+  font-family: var(--body), Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.panel-brand small {
+  color: #b7c8c4;
+  line-height: 1.25;
+}
+
+.capture-panel h2,
+.pos-section-head h2,
+.settings-intro h2,
+.reports-hero h2,
+.cash-hero h2,
+.cash-open-card h3,
+.utility-panel h2,
+.recent-panel h3,
+.quick-actions-panel h3,
+.repair-card-heading h3,
+.compact-form h3,
+.event-form h3 {
+  color: #17201d;
+  font-family: var(--body), Arial, sans-serif;
+  font-size: clamp(1.15rem, 1.8vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -.025em;
+  text-transform: none;
+  text-wrap: balance;
+}
+
+.reports-hero h2,
+.cash-hero h2 {
+  font-size: clamp(1.65rem, 3vw, 2.7rem);
+}
+
+.cash-open-card h3,
+.utility-panel h2 {
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+}
+
+.metric-list article,
+.stat-card,
+.quick-action,
+.report-preview article,
+.cash-kpi-grid article,
+.cash-range-card,
+.activity-row,
+.data-row,
+.repair-ticket,
+.product-pick {
+  color: #17201d;
+}
+
+.metric-list b,
+.stat-card b,
+.report-preview b,
+.cash-kpi-grid b,
+.cash-range-card > b,
+.command-total strong,
+.cart-total b,
+.sale-actions-panel h2,
+.repair-balance b,
+.repair-balance strong {
+  font-family: var(--body), Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.035em;
+}
+
+.metric-list b {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.stat-card b {
+  font-size: clamp(1.8rem, 2.4vw, 2.65rem);
+  line-height: 1.05;
+}
+
+.report-preview b,
+.cash-kpi-grid b,
+.cash-range-card > b {
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  line-height: 1.1;
+}
+
+.cart-total b {
+  font-size: clamp(1.55rem, 2.8vw, 2.15rem);
+}
+
+.sale-actions-panel h2 {
+  margin: 22px 0 10px;
+  font-size: clamp(1.9rem, 3vw, 2.75rem);
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.data-row,
+.sale-history-row,
+.cash-session-row,
+.movement-row,
+.repair-ticket {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.data-row b,
+.sale-history-row b,
+.cash-session-row b,
+.movement-row b,
+.repair-ticket b,
+.activity-row b,
+.product-pick b,
+.quick-action b {
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.data-row span,
+.data-row small,
+.sale-history-row small,
+.cash-session-row span,
+.movement-row span,
+.movement-row small,
+.activity-row small,
+.product-pick small,
+.quick-action small,
+.repair-ticket span,
+.repair-ticket p {
+  color: #5f6e68;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.ops-form label,
+.login-card label,
+.checkout-form label,
+.cancel-sale-form label,
+.report-filter label,
+.repair-ticket label {
+  color: #43524d;
+  font-size: 10px;
+  line-height: 1.35;
+  letter-spacing: .045em;
+}
+
+.ops-form input,
+.ops-form textarea,
+.ops-form select,
+.login-card input,
+.checkout-form input,
+.checkout-form select,
+.cancel-sale-form textarea,
+.panel-search input,
+.pos-search input {
+  color: #17201d;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.panel-primary,
+.text-action,
+.row-actions button,
+.compact-form button,
+.event-form button,
+.quick-action,
+.product-pick,
+.sale-history-row,
+.cash-session-row {
+  line-height: 1.2;
+}
+
+.product-pick {
+  min-height: 132px;
+}
+
+.product-pick > b {
+  margin: 10px 28px 14px 0;
+}
+
+.cart-receipt,
+.print-ticket,
+.cash-print,
+.repair-print-note {
+  color: #17201d;
+}
+
+.print-ticket h1,
+.cash-print h1,
+.repair-print-note h1 {
+  font-family: Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.business-preview h3 {
+  color: #17201d;
+  font-family: var(--body), Arial, sans-serif;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  line-height: 1.15;
+}
+
+.business-preview,
+.settings-form-card,
+.capture-panel,
+.records-panel,
+.cash-hero,
+.cash-open-card,
+.cash-current,
+.cash-history,
+.reports-hero,
+.recent-panel,
+.utility-panel {
+  overflow: hidden;
+}
+
+@media (max-width: 1050px) {
+  .panel-sidebar button {
+    min-width: 44px;
+    min-height: 44px;
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 700px) {
+  .panel-workspace {
+    padding: 22px 16px;
+  }
+
+  .panel-workspace > header {
+    margin: 0 0 22px;
+    padding: 0 0 18px;
+  }
+
+  .panel-workspace h1 {
+    font-size: clamp(1.55rem, 8vw, 2.1rem);
+    line-height: 1.08;
+  }
+
+  .panel-sidebar nav {
+    gap: 4px;
+  }
+
+  .panel-sidebar nav button {
+    flex: 0 0 auto;
+    min-width: 44px;
+  }
+
+  .pos-section-head,
+  .cash-hero,
+  .reports-hero,
+  .settings-intro {
+    align-items: flex-start;
+  }
+
+  .data-row,
+  .sale-history-row,
+  .cash-session-row,
+  .movement-row,
+  .repair-ticket {
+    min-width: 0;
+  }
+}

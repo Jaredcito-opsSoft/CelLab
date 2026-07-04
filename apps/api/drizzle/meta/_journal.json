@@ -22,6 +22,34 @@
       "when": 1782154842458,
       "tag": "0002_easy_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782370274402,
+      "tag": "0003_square_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782409733591,
+      "tag": "0004_faulty_energizer",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782699587927,
+      "tag": "0005_ancient_cassandra_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782706004268,
+      "tag": "0006_simple_genesis",
+      "breakpoints": true
     }
   ]
 }

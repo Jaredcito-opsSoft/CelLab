@@ -2,6 +2,7 @@ import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import { businessSettings, folioCounters, inventoryMovements, products, saleItems, sales } from '../../db/schema.js';
 import { AppError } from '../../lib/errors.js';
+import { recordCashMovementIfOpen } from '../cash/cash.service.js';
 
 export type CreateSaleInput = {
   customerId?: string | null;
@@ -18,14 +19,14 @@ export async function createSale(input: CreateSaleInput, userId: string) {
 
     const productIds = input.items.map((item) => item.productId);
     const catalog = await tx.select({
-      id: products.id, name: products.name, priceCents: products.priceCents,
+      id: products.id, name: products.name, priceCents: products.priceCents, costCents: products.costCents,
     }).from(products).where(and(inArray(products.id, productIds), isNull(products.deletedAt), eq(products.active, true)));
     if (catalog.length !== productIds.length) throw new AppError(409, 'Uno o más productos ya no están disponibles.');
 
     const byId = new Map(catalog.map((product) => [product.id, product]));
     const lineItems = input.items.map((item) => {
       const product = byId.get(item.productId)!;
-      return { ...item, productNameSnapshot: product.name, unitPriceCents: product.priceCents, subtotalCents: product.priceCents * item.quantity };
+      return { ...item, productNameSnapshot: product.name, unitPriceCents: product.priceCents, subtotalCents: product.priceCents * item.quantity, costCentsSnapshot: product.costCents ?? 0 };
     });
     const subtotalCents = lineItems.reduce((sum, item) => sum + item.subtotalCents, 0);
     if (input.discountCents > subtotalCents) throw new AppError(400, 'El descuento no puede superar el subtotal.');
@@ -57,6 +58,7 @@ export async function createSale(input: CreateSaleInput, userId: string) {
       quantity: item.quantity,
       unitPriceCents: item.unitPriceCents,
       subtotalCents: item.subtotalCents,
+      costCentsSnapshot: item.costCentsSnapshot,
     })));
 
     for (const item of lineItems) {
@@ -78,7 +80,8 @@ export async function createSale(input: CreateSaleInput, userId: string) {
         notes: `Venta ${sale.folio}`,
       });
     }
-    return sale;
+    const cashResult = await recordCashMovementIfOpen(tx, { businessId: business.id, type: 'sale_payment', method: sale.paymentMethod, amountCents: sale.totalCents, direction: 'in', referenceType: 'sale', referenceId: sale.id, referenceFolio: sale.folio, reason: 'Venta POS', userId });
+    return { ...sale, cashWarning: cashResult.cashWarning };
   });
 }
 
@@ -111,6 +114,8 @@ export async function cancelSale(saleId: string, reason: string, userId: string)
         notes: reason,
       });
     }
-    return sale;
+    const cashResult = await recordCashMovementIfOpen(tx, { businessId: business.id, type: 'sale_cancel', method: sale.paymentMethod, amountCents: sale.totalCents, direction: 'out', referenceType: 'sale', referenceId: sale.id, referenceFolio: sale.folio, reason, userId });
+    return { ...sale, cashWarning: cashResult.cashWarning };
   });
 }
+

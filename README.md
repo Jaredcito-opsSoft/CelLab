@@ -34,3 +34,7 @@ pnpm dev
 ## Siguiente fase
 
 POS-lite con ventas `VTA-00001`, pagos, movimientos de inventario, descuento de stock transaccional y notas imprimibles alimentadas por `business_settings`.
+
+## Hito 8.5 — caja y operación real
+
+Se agregaron correcciones funcionales para caja, ventas y reparaciones: política configurable de caja abierta, timezone por negocio, costo snapshot en ventas, validación de sobrepagos, permisos endurecidos y perfil público del negocio para eliminar teléfonos hardcodeados en WhatsApp. Ver `docs/hito-8-5-correcciones-funcionales-caja-ventas.md`.
