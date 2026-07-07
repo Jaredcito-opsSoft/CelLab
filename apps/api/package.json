@@ -10,7 +10,10 @@
                     "typecheck":  "tsc -p tsconfig.json --noEmit",
                     "db:generate":  "drizzle-kit generate",
                     "db:migrate":  "drizzle-kit migrate",
-                    "db:seed":  "tsx src/db/seed.ts"
+                    "db:seed":  "tsx src/db/seed.ts",
+                    "smoke:permissions":  "tsx src/scripts/smoke-permissions.ts",
+                    "smoke:modules":  "tsx src/scripts/smoke-modules.ts",
+                    "smoke:purchases":  "tsx src/scripts/smoke-purchases.ts"
                 },
     "dependencies":  {
                          "bcryptjs":  "^3.0.3",

@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { cashSessions, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { recordAuditLog } from '../../lib/audit.js';
+import { AppError } from '../../lib/errors.js';
+import { roleGroups } from '../../lib/roles.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { addManualCashMovement, closeCashSession, getBusiness, getOpenCashSession, loadCashSessionDetail, openCashSession, summarizeCashRange } from './cash.service.js';
 
@@ -33,18 +36,23 @@ cashRouter.get('/current', asyncHandler(async (_req, res) => {
   res.json({ item: await loadCashSessionDetail(session.id) });
 }));
 
-cashRouter.post('/open', requireRole('admin'), asyncHandler(async (req, res) => {
+cashRouter.post('/open', requireRole(...roleGroups.cash), asyncHandler(async (req, res) => {
   const item = await openCashSession(openInput.parse(req.body), req.auth!.userId);
+  await recordAuditLog({ actor: req.auth!, action: 'cash.open', entityType: 'cash_session', entityId: item.id, summary: 'Caja abierta', metadata: { openingCashCents: item.openingCashCents } });
   res.status(201).json({ item });
 }));
 
-cashRouter.post('/manual-movement', requireRole('admin'), asyncHandler(async (req, res) => {
-  const item = await addManualCashMovement(manualInput.parse(req.body), req.auth!.userId);
+cashRouter.post('/manual-movement', requireRole(...roleGroups.cash), asyncHandler(async (req, res) => {
+  const input = manualInput.parse(req.body);
+  const item = await addManualCashMovement(input, req.auth!.userId);
+  if (!item) throw new AppError(500, 'No fue posible registrar el movimiento de caja.');
+  await recordAuditLog({ actor: req.auth!, action: 'cash.manual_movement', entityType: 'cash_movement', entityId: item.id, summary: input.reason, metadata: { type: input.type, method: input.method, amountCents: input.amountCents } });
   res.status(201).json({ item });
 }));
 
-cashRouter.post('/close', requireRole('admin'), asyncHandler(async (req, res) => {
+cashRouter.post('/close', requireRole(...roleGroups.cash), asyncHandler(async (req, res) => {
   const item = await closeCashSession(closeInput.parse(req.body), req.auth!.userId);
+  await recordAuditLog({ actor: req.auth!, action: 'cash.close', entityType: 'cash_session', entityId: item.id, summary: 'Caja cerrada', metadata: { countedCashCents: item.countedCashCents, differenceCents: item.differenceCents } });
   res.json({ item });
 }));
 
