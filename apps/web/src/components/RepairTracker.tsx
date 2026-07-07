@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Search, XCircle } from 'lucide-react';
 import { apiRequest } from '../lib/api';
 import { buildWhatsappLink, useBusinessProfile } from '../hooks/useBusinessProfile';

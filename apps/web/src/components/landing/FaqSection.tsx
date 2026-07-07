@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { faqs } from './landingData';
 
 export function FaqSection() {
@@ -20,7 +20,9 @@ export function FaqSection() {
                 <b aria-hidden="true">{isOpen ? '−' : '+'}</b>
               </button>
               <div className={isOpen ? 'is-open' : ''} id={`faq-${id}`}>
-                <p>{answer}</p>
+                <div className="lp-faq__answer-inner">
+                  <p>{answer}</p>
+                </div>
               </div>
             </article>
           );

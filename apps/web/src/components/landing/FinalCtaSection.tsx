@@ -1,4 +1,4 @@
-﻿import { WhatsAppIcon } from './icons';
+import { WhatsAppIcon } from './icons';
 import { buildPhoneLink, buildWhatsappLink, useBusinessProfile } from '../../hooks/useBusinessProfile';
 
 export function FinalCtaSection() {

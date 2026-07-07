@@ -1,2 +1,2 @@
-﻿export { LandingPage as PublicHomePage } from './LandingPage';
+export { LandingPage as PublicHomePage } from './LandingPage';
 

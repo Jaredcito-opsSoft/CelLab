@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { LogoIcon } from '../LogoIcon';
 import { ArrowIcon } from './icons';
 import { buildWhatsappLink, useBusinessProfile } from '../../hooks/useBusinessProfile';

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, MessageCircle, Send, X } from 'lucide-react';
 import type { ChatMessage, ChatStep } from '../types';
 import { BRANDS, SERVICES } from '../types';
