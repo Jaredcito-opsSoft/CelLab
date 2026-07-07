@@ -4,9 +4,13 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { businessSettings, clients, folioCounters, inventoryMovements, products, repairEvents, repairItems, repairPayments, repairs, sales, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
+import { roleGroups } from '../../lib/roles.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
+import { requireModule } from '../../middlewares/modules.js';
 import { localDateRange, rangeBounds, recordCashMovementIfOpen } from '../cash/cash.service.js';
+import { readEnabledModules } from '../modules/modules.service.js';
 
 export const operationsRouter = Router();
 operationsRouter.use(requireAuth);
@@ -39,6 +43,7 @@ const voidInput = z.object({ reason: z.string().trim().min(3).max(1000).default(
 
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 const quoteTotal = (repair: typeof repairs.$inferSelect) => repair.finalCents ?? repair.estimatedCents ?? 0;
+const canAccessCosts = (role: string) => role === 'admin' || role === 'manager';
 async function getBusiness(tx: typeof db | any = db) {
   const [business] = await tx.select().from(businessSettings).limit(1);
   if (!business) throw new AppError(409, 'Configura el negocio antes de continuar.');
@@ -48,6 +53,8 @@ async function getBusiness(tx: typeof db | any = db) {
 operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
   const business = await getBusiness();
   const { from: startOfToday, to: endOfToday } = rangeBounds('today', business.timezone);
+  const moduleState = await readEnabledModules(['repairs']);
+  const repairsEnabled = moduleState.get('repairs') ?? false;
 
   const [
     [customers],
@@ -62,8 +69,8 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
   ] = await Promise.all([
     db.select({ value: count() }).from(clients).where(isNull(clients.deletedAt)),
     db.select({ value: count() }).from(products).where(isNull(products.deletedAt)),
-    db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), sql`${repairs.status} not in ('delivered','cancelled')`)),
-    db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), eq(repairs.status, 'ready'))),
+    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), sql`${repairs.status} not in ('delivered','cancelled')`)) : Promise.resolve([{ value: 0 }]),
+    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), eq(repairs.status, 'ready'))) : Promise.resolve([{ value: 0 }]),
     db.select({ value: count() }).from(products).where(and(isNull(products.deletedAt), sql`${products.stock} <= ${products.minimumStock}`)),
     db.select({
       count: count(),
@@ -83,7 +90,7 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
       createdAt: sales.createdAt,
       customerName: clients.name,
     }).from(sales).leftJoin(clients, eq(sales.customerId, clients.id)).where(isNull(sales.deletedAt)).orderBy(desc(sales.createdAt)).limit(5),
-    db.select({
+    repairsEnabled ? db.select({
       id: repairs.id,
       folio: repairs.folio,
       brand: repairs.brand,
@@ -91,7 +98,7 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
       status: repairs.status,
       createdAt: repairs.createdAt,
       clientName: clients.name,
-    }).from(repairs).innerJoin(clients, eq(repairs.clientId, clients.id)).where(isNull(repairs.deletedAt)).orderBy(desc(repairs.createdAt)).limit(5),
+    }).from(repairs).innerJoin(clients, eq(repairs.clientId, clients.id)).where(isNull(repairs.deletedAt)).orderBy(desc(repairs.createdAt)).limit(5) : Promise.resolve([]),
     db.select({
       id: inventoryMovements.id,
       type: inventoryMovements.type,
@@ -118,6 +125,8 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
 }));
 operationsRouter.get('/reports/basic', asyncHandler(async (req, res) => {
   const business = await getBusiness();
+  const moduleState = await readEnabledModules(['repairs']);
+  const repairsEnabled = moduleState.get('repairs') ?? false;
   const todayBounds = rangeBounds('today', business.timezone);
   const fromDate = typeof req.query.from === 'string' && req.query.from ? req.query.from : null;
   const toDate = typeof req.query.to === 'string' && req.query.to ? req.query.to : null;
@@ -133,8 +142,8 @@ operationsRouter.get('/reports/basic', asyncHandler(async (req, res) => {
     movementRows,
   ] = await Promise.all([
     db.select({ count: count(), totalCents: sql<number>`coalesce(sum(${sales.totalCents}), 0)::int` }).from(sales).where(and(isNull(sales.deletedAt), eq(sales.status, 'completed'), gte(sales.createdAt, from), lte(sales.createdAt, to))),
-    db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), eq(repairs.status, 'delivered'), gte(repairs.deliveredAt, from), lte(repairs.deliveredAt, to))),
-    db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), sql`${repairs.status} not in ('delivered','cancelled')`)),
+    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), eq(repairs.status, 'delivered'), gte(repairs.deliveredAt, from), lte(repairs.deliveredAt, to))) : Promise.resolve([{ value: 0 }]),
+    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), sql`${repairs.status} not in ('delivered','cancelled')`)) : Promise.resolve([{ value: 0 }]),
     db.select({ value: count() }).from(products).where(and(isNull(products.deletedAt), eq(products.active, true), sql`${products.stock} <= ${products.minimumStock}`)),
     db.select({ id: inventoryMovements.id, type: inventoryMovements.type, quantity: inventoryMovements.quantity, previousStock: inventoryMovements.previousStock, newStock: inventoryMovements.newStock, notes: inventoryMovements.notes, createdAt: inventoryMovements.createdAt, productName: products.name, userName: users.name }).from(inventoryMovements).innerJoin(products, eq(inventoryMovements.productId, products.id)).innerJoin(users, eq(inventoryMovements.userId, users.id)).orderBy(desc(inventoryMovements.createdAt)).limit(10),
   ]);
@@ -165,13 +174,17 @@ operationsRouter.get('/clients', asyncHandler(async (req,res) => {
   const {search,limit}=query.parse(req.query);
   res.json({items:await db.select().from(clients).where(and(isNull(clients.deletedAt),search?or(ilike(clients.name,`%${search}%`),ilike(clients.phone,`%${search}%`)):undefined)).orderBy(desc(clients.createdAt)).limit(limit)});
 }));
-operationsRouter.post('/clients', asyncHandler(async (req,res) => { const [item]=await db.insert(clients).values(clientInput.parse(req.body)).returning(); res.status(201).json({item}); }));
-operationsRouter.patch('/clients/:id', asyncHandler(async (req,res) => {
-  const [item]=await db.update(clients).set({...clientInput.partial().parse(req.body),updatedAt:new Date()}).where(and(eq(clients.id,id.parse(req.params.id)),isNull(clients.deletedAt))).returning();
+operationsRouter.post('/clients', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => { const [item]=await db.insert(clients).values(clientInput.parse(req.body)).returning(); if(!item)throw new AppError(500,'No fue posible registrar el cliente.');
+  await recordAuditLog({actor:req.auth!,action:'clients.create',entityType:'client',entityId:item.id,summary:`Cliente creado: ${item.name}`,metadata:{phone:item.phone}}); res.status(201).json({item}); }));
+operationsRouter.patch('/clients/:id', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
+  const input=clientInput.partial().parse(req.body);
+  const [item]=await db.update(clients).set({...input,updatedAt:new Date()}).where(and(eq(clients.id,id.parse(req.params.id)),isNull(clients.deletedAt))).returning();
+  if(item)await recordAuditLog({actor:req.auth!,action:'clients.update',entityType:'client',entityId:item.id,summary:`Cliente actualizado: ${item.name}`,metadata:input});
   if(!item)throw new AppError(404,'Cliente no encontrado.'); res.json({item});
 }));
-operationsRouter.delete('/clients/:id', asyncHandler(async (req,res) => {
+operationsRouter.delete('/clients/:id', requireRole(...roleGroups.managers), asyncHandler(async (req,res) => {
   const [item]=await db.update(clients).set({deletedAt:new Date(),updatedAt:new Date()}).where(and(eq(clients.id,id.parse(req.params.id)),isNull(clients.deletedAt))).returning({id:clients.id});
+  if(item)await recordAuditLog({actor:req.auth!,action:'clients.archive',entityType:'client',entityId:item.id,summary:'Cliente archivado'});
   if(!item)throw new AppError(404,'Cliente no encontrado.'); res.status(204).send();
 }));
 
@@ -179,7 +192,7 @@ operationsRouter.get('/products', asyncHandler(async (req,res) => {
   const {search,limit}=query.parse(req.query);
   res.json({items:await db.select().from(products).where(and(isNull(products.deletedAt),search?or(ilike(products.name,`%${search}%`),ilike(products.sku,`%${search}%`)):undefined)).orderBy(desc(products.createdAt)).limit(limit)});
 }));
-operationsRouter.post('/products', asyncHandler(async (req,res) => {
+operationsRouter.post('/products', requireRole(...roleGroups.inventory), asyncHandler(async (req,res) => {
   const input=productInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
@@ -188,14 +201,11 @@ operationsRouter.post('/products', asyncHandler(async (req,res) => {
     if(created.stock>0)await tx.insert(inventoryMovements).values({businessId:business.id,productId:created.id,userId:req.auth!.userId,type:'stock_entry',quantity:created.stock,previousStock:0,newStock:created.stock,referenceType:'product',referenceId:created.id,notes:'Existencia inicial'});
     return created;
   });
+  await recordAuditLog({actor:req.auth!,action:'products.create',entityType:'product',entityId:item.id,summary:`Producto creado: ${item.name}`,metadata:{sku:item.sku,priceCents:item.priceCents,costCents:item.costCents,stock:item.stock}});
   res.status(201).json({item});
 }));
-operationsRouter.patch('/products/:id', asyncHandler(async (req,res) => {
+operationsRouter.patch('/products/:id', requireRole(...roleGroups.inventory), asyncHandler(async (req,res) => {
   const productId=id.parse(req.params.id),input=productInput.partial().parse(req.body);
-  const sensitiveFields = ['costCents','priceCents','stock','minimumStock','active'] as const;
-  if (req.auth?.role !== 'admin' && sensitiveFields.some((field) => Object.prototype.hasOwnProperty.call(input, field))) {
-    throw new AppError(403, 'Tu rol no permite modificar precio, costo, stock m韓imo o estado del producto.');
-  }
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
     const [current]=await tx.select().from(products).where(and(eq(products.id,productId),isNull(products.deletedAt))).limit(1);
@@ -204,12 +214,17 @@ operationsRouter.patch('/products/:id', asyncHandler(async (req,res) => {
     if(input.stock!==undefined&&input.stock!==current.stock)await tx.insert(inventoryMovements).values({businessId:business.id,productId,userId:req.auth!.userId,type:'manual_adjustment',quantity:Math.abs(input.stock-current.stock),previousStock:current.stock,newStock:input.stock,referenceType:'manual',referenceId:productId,notes:'Ajuste desde inventario'});
     return updated;
   });
+  if(!item)throw new AppError(500,'No fue posible actualizar el producto.');
+  await recordAuditLog({actor:req.auth!,action:'products.update',entityType:'product',entityId:item.id,summary:`Producto actualizado: ${item.name}`,metadata:input});
   res.json({item});
 }));
-operationsRouter.delete('/products/:id', requireRole('admin'), asyncHandler(async (req,res) => {
+operationsRouter.delete('/products/:id', requireRole(...roleGroups.adminOnly), asyncHandler(async (req,res) => {
   const [item]=await db.update(products).set({deletedAt:new Date(),active:false,updatedAt:new Date()}).where(and(eq(products.id,id.parse(req.params.id)),isNull(products.deletedAt))).returning({id:products.id});
+  if(item)await recordAuditLog({actor:req.auth!,action:'products.archive',entityType:'product',entityId:item.id,summary:'Producto archivado'});
   if(!item)throw new AppError(404,'Producto no encontrado.'); res.status(204).send();
 }));
+
+operationsRouter.use('/repairs', requireModule('repairs'));
 
 operationsRouter.get('/repairs', asyncHandler(async (req,res) => {
   const {search,status,limit}=query.parse(req.query);
@@ -221,33 +236,35 @@ operationsRouter.get('/repairs', asyncHandler(async (req,res) => {
   res.json({items:rows.map(({repair,...client})=>({...repair,...client}))});
 }));
 
-operationsRouter.post('/repairs', asyncHandler(async (req,res) => {
+operationsRouter.post('/repairs', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
   const input=repairInput.parse(req.body);
   const initialTotalCents = input.finalCents ?? input.estimatedCents ?? 0;
-  if (initialTotalCents > 0 && input.depositCents > initialTotalCents) throw new AppError(400, 'El anticipo no puede superar el total definido de la reparaci髇.');
+  if (initialTotalCents > 0 && input.depositCents > initialTotalCents) throw new AppError(400, 'El anticipo no puede superar el total definido de la reparaci贸n.');
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
     const [counter]=await tx.insert(folioCounters).values({scope:'repair',value:1}).onConflictDoUpdate({target:folioCounters.scope,set:{value:sql`${folioCounters.value}+1`,updatedAt:new Date()}}).returning({value:folioCounters.value});
     if(!counter)throw new AppError(500,'No fue posible generar el folio.');
     const [created]=await tx.insert(repairs).values({...input,folio:`REP-${String(counter.value).padStart(5,'0')}`}).returning();
-    if(!created)throw new AppError(500,'No fue posible crear la reparaci髇.');
+    if(!created)throw new AppError(500,'No fue posible crear la reparaci贸n.');
     await tx.insert(repairEvents).values({repairId:created.id,toStatus:'received',note:'Equipo recibido en taller.',createdById:req.auth!.userId});
     let cashWarning: string | null = null;
     if(created.depositCents>0){
       const [depositPayment]=await tx.insert(repairPayments).values({businessId:business.id,repairId:created.id,amountCents:created.depositCents,method:'cash',note:'Anticipo inicial',receivedByUserId:req.auth!.userId}).returning();
       if(depositPayment){
-        const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment',method:'cash',amountCents:depositPayment.amountCents,direction:'in',referenceType:'repair',referenceId:created.id,referenceFolio:created.folio,reason:'Anticipo de reparaci髇',note:depositPayment.note,userId:req.auth!.userId});
+        const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment',method:'cash',amountCents:depositPayment.amountCents,direction:'in',referenceType:'repair',referenceId:created.id,referenceFolio:created.folio,reason:'Anticipo de reparaci贸n',note:depositPayment.note,userId:req.auth!.userId});
         cashWarning=cashResult.cashWarning;
       }
     }
     return {...created,cashWarning};
   });
+  await recordAuditLog({actor:req.auth!,action:'repairs.create',entityType:'repair',entityId:item.id,summary:`Reparaci贸n creada: ${item.folio}`,metadata:{clientId:item.clientId,depositCents:item.depositCents,status:item.status}});
   res.status(201).json({item});
 }));
 
 operationsRouter.get('/repairs/:id', asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id);
   const business=await getBusiness();
+  const canViewCosts=canAccessCosts(req.auth!.role);
   const [row]=await db.select({repair:repairs,client:clients,assignedToName:users.name}).from(repairs).innerJoin(clients,eq(repairs.clientId,clients.id)).leftJoin(users,eq(repairs.assignedToId,users.id)).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
   if(!row)throw new AppError(404,'Reparaci贸n no encontrada.');
   const [events,payments,items]=await Promise.all([
@@ -265,10 +282,11 @@ operationsRouter.get('/repairs/:id', asyncHandler(async (req,res) => {
   const totalCents=quoteTotal(row.repair);
   const balanceCents=Math.max(0,totalCents-paidCents);
   const paymentStatus=totalCents>0&&balanceCents===0?'paid':paidCents>0?'partial':'pending';
-  res.json({item:{...row.repair,client:row.client,assignedToName:row.assignedToName,events,payments,items,business,totalCents,paidCents,balanceCents,paymentStatus,itemsRevenueCents,itemsCostCents,itemsGrossProfitCents,itemsGrossMarginBps}});
+  const safeItems=canViewCosts?items:items.map(item=>({...item,costCentsSnapshot:0,costTotalCents:0,grossProfitCents:0,grossMarginBps:0}));
+  res.json({item:{...row.repair,client:row.client,assignedToName:row.assignedToName,events,payments,items:safeItems,business,totalCents,paidCents,balanceCents,paymentStatus,itemsRevenueCents,itemsCostCents:canViewCosts?itemsCostCents:0,itemsGrossProfitCents:canViewCosts?itemsGrossProfitCents:0,itemsGrossMarginBps:canViewCosts?itemsGrossMarginBps:0}});
 }));
 
-operationsRouter.patch('/repairs/:id', asyncHandler(async (req,res) => {
+operationsRouter.patch('/repairs/:id', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id), input=repairUpdateInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
@@ -281,16 +299,19 @@ operationsRouter.patch('/repairs/:id', asyncHandler(async (req,res) => {
     if(input.status&&input.status!==current.status)await tx.insert(repairEvents).values({repairId,fromStatus:current.status,toStatus:input.status,note:'Cambio de estado desde detalle.',createdById:req.auth!.userId});
     return updated;
   });
+  if(!item)throw new AppError(500,'No fue posible actualizar la reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.update',entityType:'repair',entityId:item.id,summary:`Reparaci贸n actualizada: ${item.folio}`,metadata:input});
   res.json({item});
 }));
 
-operationsRouter.delete('/repairs/:id', requireRole('admin'), asyncHandler(async (req,res) => {
+operationsRouter.delete('/repairs/:id', requireRole(...roleGroups.adminOnly), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id);
   const [item]=await db.update(repairs).set({deletedAt:new Date(),updatedAt:new Date()}).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).returning({id:repairs.id});
+  if(item)await recordAuditLog({actor:req.auth!,action:'repairs.archive',entityType:'repair',entityId:item.id,summary:'Reparaci贸n archivada'});
   if(!item)throw new AppError(404,'Reparaci贸n no encontrada.'); res.status(204).send();
 }));
 
-operationsRouter.patch('/repairs/:id/status', asyncHandler(async (req,res) => {
+operationsRouter.patch('/repairs/:id/status', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id),input=stateInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
@@ -301,10 +322,12 @@ operationsRouter.patch('/repairs/:id/status', asyncHandler(async (req,res) => {
     await tx.insert(repairEvents).values({repairId,fromStatus:current.status,toStatus:input.status,note:input.note,createdById:req.auth!.userId});
     return updated;
   });
+  if(!item)throw new AppError(500,'No fue posible cambiar el estado de la reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.status',entityType:'repair',entityId:item.id,summary:`Estado de reparaci贸n: ${item.status}`,metadata:input});
   res.json({item});
 }));
 
-operationsRouter.post('/repairs/:id/events', asyncHandler(async (req,res) => {
+operationsRouter.post('/repairs/:id/events', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id), input=eventInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
@@ -313,36 +336,41 @@ operationsRouter.post('/repairs/:id/events', asyncHandler(async (req,res) => {
     const [event]=await tx.insert(repairEvents).values({repairId,fromStatus:input.status&&input.status!==current.status?current.status:null,toStatus:input.status??current.status,note:input.note,createdById:req.auth!.userId}).returning();
     return event;
   });
+  if(!item)throw new AppError(500,'No fue posible registrar el evento de reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.event',entityType:'repair',entityId:repairId,summary:'Evento agregado a reparaci贸n',metadata:input});
   res.status(201).json({item});
 }));
 
-operationsRouter.post('/repairs/:id/payments', asyncHandler(async (req,res) => {
+operationsRouter.post('/repairs/:id/payments', requireRole(...roleGroups.staff), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id), input=paymentInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
     const [repair]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
-    if(!repair)throw new AppError(404,'Reparaci髇 no encontrada.');
-    if(repair.status==='cancelled')throw new AppError(409,'No se pueden registrar pagos en una reparaci髇 cancelada.');
+    if(!repair)throw new AppError(404,'Reparaci贸n no encontrada.');
+    if(repair.status==='cancelled')throw new AppError(409,'No se pueden registrar pagos en una reparaci贸n cancelada.');
     const totalCents=quoteTotal(repair);
     const [paid]=await tx.select({value:sql<number>`coalesce(sum(${repairPayments.amountCents}),0)::int`}).from(repairPayments).where(and(eq(repairPayments.repairId,repairId),eq(repairPayments.status,'active')));
     const alreadyPaidCents=paid?.value ?? 0;
-    if(totalCents>0 && alreadyPaidCents + input.amountCents > totalCents) throw new AppError(400,'El pago excede el saldo pendiente de la reparaci髇.');
+    if(totalCents>0 && alreadyPaidCents + input.amountCents > totalCents) throw new AppError(400,'El pago excede el saldo pendiente de la reparaci贸n.');
     const [payment]=await tx.insert(repairPayments).values({businessId:business.id,repairId,amountCents:input.amountCents,method:input.method,note:input.note??null,receivedByUserId:req.auth!.userId}).returning();
-    const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment',method:input.method,amountCents:input.amountCents,direction:'in',referenceType:'repair',referenceId:repairId,referenceFolio:repair.folio,reason:'Pago de reparaci髇',note:input.note??null,userId:req.auth!.userId});
+    const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment',method:input.method,amountCents:input.amountCents,direction:'in',referenceType:'repair',referenceId:repairId,referenceFolio:repair.folio,reason:'Pago de reparaci贸n',note:input.note??null,userId:req.auth!.userId});
     await tx.insert(repairEvents).values({repairId,fromStatus:repair.status,toStatus:repair.status,note:`Pago registrado por ${input.amountCents} centavos.`,createdById:req.auth!.userId});
     return {...payment,cashWarning:cashResult.cashWarning};
   });
+  if(!item)throw new AppError(500,'No fue posible registrar el pago de reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.payment',entityType:'repair',entityId:repairId,summary:'Pago de reparaci贸n registrado',metadata:{amountCents:item.amountCents,method:item.method}});
   res.status(201).json({item});
 }));
 
-operationsRouter.post('/repairs/:id/items', asyncHandler(async (req,res) => {
+operationsRouter.post('/repairs/:id/items', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
   const repairId=id.parse(req.params.id), input=itemInput.parse(req.body);
+  const canSetCosts=canAccessCosts(req.auth!.role);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
     const [repair]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
     if(!repair)throw new AppError(404,'Reparaci贸n no encontrada.');
     if(repair.status==='cancelled')throw new AppError(409,'No se pueden agregar conceptos a una reparaci贸n cancelada.');
-    let name=input.name; let unitPriceCents=input.unitPriceCents; let costCentsSnapshot=input.costCents; let productId=input.productId??null;
+    let name=input.name; let unitPriceCents=input.unitPriceCents; let costCentsSnapshot=canSetCosts?input.costCents:0; let productId=input.productId??null;
     if(productId){
       const [product]=await tx.select().from(products).where(and(eq(products.id,productId),isNull(products.deletedAt),eq(products.active,true))).limit(1);
       if(!product)throw new AppError(404,'Producto no encontrado.');
@@ -362,10 +390,14 @@ operationsRouter.post('/repairs/:id/items', asyncHandler(async (req,res) => {
     await tx.insert(repairEvents).values({repairId,fromStatus:repair.status,toStatus:repair.status,note:`Concepto agregado: ${name}.`,createdById:req.auth!.userId});
     return created;
   });
+  if(!item)throw new AppError(500,'No fue posible registrar el concepto de reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.item',entityType:'repair',entityId:repairId,summary:`Concepto agregado: ${item.nameSnapshot}`,metadata:{quantity:item.quantity,totalCents:item.totalCents,affectsInventory:item.affectsInventory,productId:item.productId}});
   res.status(201).json({item});
 }));
 
-operationsRouter.post('/repair-items/:id/void', requireRole('admin'), asyncHandler(async (req,res) => {
+operationsRouter.use('/repair-items', requireModule('repairs'));
+
+operationsRouter.post('/repair-items/:id/void', requireRole(...roleGroups.adminOnly), asyncHandler(async (req,res) => {
   const itemId=id.parse(req.params.id), input=voidInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
@@ -381,10 +413,12 @@ operationsRouter.post('/repair-items/:id/void', requireRole('admin'), asyncHandl
     await tx.insert(repairEvents).values({repairId:row.repair.id,fromStatus:row.repair.status,toStatus:row.repair.status,note:`Concepto anulado: ${row.item.nameSnapshot}. ${input.reason}`,createdById:req.auth!.userId});
     return voided;
   });
+  if(!item)throw new AppError(500,'No fue posible anular el concepto de reparaci贸n.');
+  await recordAuditLog({actor:req.auth!,action:'repairs.item_void',entityType:'repair_item',entityId:item.id,summary:'Concepto de reparaci贸n anulado',metadata:{reason:input.reason,repairId:item.repairId}});
   res.json({item});
 }));
 
-operationsRouter.post('/repair-payments/:id/void', requireRole('admin'), asyncHandler(async (req,res) => {
+operationsRouter.post('/repair-payments/:id/void', requireRole(...roleGroups.adminOnly), asyncHandler(async (req,res) => {
   const paymentId=id.parse(req.params.id);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
@@ -393,12 +427,13 @@ operationsRouter.post('/repair-payments/:id/void', requireRole('admin'), asyncHa
     const [voided]=await tx.update(repairPayments).set({status:'voided',voidedAt:new Date(),voidedByUserId:req.auth!.userId}).where(eq(repairPayments.id,paymentId)).returning();
     let cashWarning: string | null = null;
     if(voided){
-      const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment_void',method:row.payment.method,amountCents:row.payment.amountCents,direction:'out',referenceType:'repair',referenceId:row.repair.id,referenceFolio:row.repair.folio,reason:'Anulaci髇 de pago de reparaci髇',note:row.payment.note,userId:req.auth!.userId});
+      const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment_void',method:row.payment.method,amountCents:row.payment.amountCents,direction:'out',referenceType:'repair',referenceId:row.repair.id,referenceFolio:row.repair.folio,reason:'Anulaci贸n de pago de reparaci贸n',note:row.payment.note,userId:req.auth!.userId});
       cashWarning=cashResult.cashWarning;
     }
     await tx.insert(repairEvents).values({repairId:row.repair.id,fromStatus:row.repair.status,toStatus:row.repair.status,note:`Pago anulado por ${row.payment.amountCents} centavos.`,createdById:req.auth!.userId});
     return voided ? {...voided,cashWarning} : voided;
   });
+  await recordAuditLog({actor:req.auth!,action:'repairs.payment_void',entityType:'repair_payment',entityId:item?.id ?? paymentId,summary:'Pago de reparaci贸n anulado',metadata:{repairId:item?.repairId ?? null,amountCents:item?.amountCents ?? null}});
   res.json({item});
 }));
 

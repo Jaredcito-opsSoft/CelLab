@@ -1,4 +1,4 @@
-﻿export const trustPoints = [
+export const trustPoints = [
   'Diagnóstico claro',
   'Precio antes de reparar',
   'Garantía por escrito',
@@ -53,9 +53,9 @@ export const brands = [
   {
     id: 'iphone',
     name: 'iPhone',
-    family: 'SE · 11 · 12 · 13 · 14 · 15 · 16',
+    family: 'SE · 11 · 12 · 13 · 14 · 15 · 16 · 17 · Normal · Plus · Pro · Pro Max',
     note: 'Pantalla, batería, cámaras, centro de carga y diagnóstico general.',
-    models: ['iPhone SE', 'iPhone 11', 'iPhone 12', 'iPhone 12 Pro', 'iPhone 13', 'iPhone 13 Pro', 'iPhone 14', 'iPhone 14 Pro', 'iPhone 15', 'iPhone 15 Pro', 'iPhone 16', 'iPhone 16 Pro', 'Otro iPhone'],
+    models: ['iPhone SE', 'iPhone 11', 'iPhone 12', 'iPhone 12 Pro', 'iPhone 13', 'iPhone 13 Pro', 'iPhone 14', 'iPhone 14 Pro', 'iPhone 15', 'iPhone 15 Pro', 'iPhone 16', 'iPhone 16 Pro', 'iPhone 17', 'iPhone 17 Pro', 'iPhone 17 Pro Max', 'Otro iPhone'],
   },
   {
     id: 'motorola',

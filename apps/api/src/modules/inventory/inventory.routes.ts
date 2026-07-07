@@ -4,13 +4,15 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { businessSettings, inventoryMovements, products, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
+import { roleGroups } from '../../lib/roles.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth);
 
-const movementTypes = ['sale','sale_cancel','stock_entry','manual_adjustment','service_usage','service_usage_void'] as const;
+const movementTypes = ['sale','sale_cancel','stock_entry','manual_adjustment','service_usage','service_usage_void','purchase_receipt'] as const;
 const querySchema = z.object({ productId: z.string().uuid().optional(), type: z.enum(movementTypes).optional(), limit: z.coerce.number().int().min(1).max(200).default(100) });
 const productIdInput = z.object({ productId: z.string().uuid(), note: z.string().trim().max(1000).nullable().optional() });
 const stockEntryInput = productIdInput.extend({ quantity: z.number().int().min(1).max(99999), unitCostCents: z.number().int().min(0).optional() });
@@ -40,7 +42,7 @@ inventoryRouter.get('/', asyncHandler(async (request, response) => {
   response.json({ items });
 }));
 
-inventoryRouter.post('/stock-entry', requireRole('admin'), asyncHandler(async (request, response) => {
+inventoryRouter.post('/stock-entry', requireRole(...roleGroups.inventory), asyncHandler(async (request, response) => {
   const input = stockEntryInput.parse(request.body);
   const item = await db.transaction(async (tx) => {
     const [business] = await tx.select({ id: businessSettings.id }).from(businessSettings).limit(1);
@@ -52,10 +54,12 @@ inventoryRouter.post('/stock-entry', requireRole('admin'), asyncHandler(async (r
     await tx.insert(inventoryMovements).values({ businessId: business.id, productId: input.productId, userId: request.auth!.userId, type: 'stock_entry', quantity: input.quantity, previousStock: product.stock, newStock: nextStock, referenceType: 'product', referenceId: input.productId, notes: input.note ?? 'Entrada de stock' });
     return updated;
   });
+  if (!item) throw new AppError(500, 'No fue posible registrar la entrada de stock.');
+  await recordAuditLog({ actor: request.auth!, action: 'inventory.stock_entry', entityType: 'product', entityId: item.id, summary: 'Entrada de stock', metadata: { productId: input.productId, quantity: input.quantity, unitCostCents: input.unitCostCents ?? null } });
   response.status(201).json({ item });
 }));
 
-inventoryRouter.post('/stock-exit', requireRole('admin'), asyncHandler(async (request, response) => {
+inventoryRouter.post('/stock-exit', requireRole(...roleGroups.inventory), asyncHandler(async (request, response) => {
   const input = stockExitInput.parse(request.body);
   const item = await db.transaction(async (tx) => {
     const [business] = await tx.select({ id: businessSettings.id }).from(businessSettings).limit(1);
@@ -67,10 +71,12 @@ inventoryRouter.post('/stock-exit', requireRole('admin'), asyncHandler(async (re
     await tx.insert(inventoryMovements).values({ businessId: business.id, productId: input.productId, userId: request.auth!.userId, type: 'manual_adjustment', quantity: input.quantity, previousStock: product.stock, newStock: product.stock - input.quantity, referenceType: 'manual', referenceId: input.productId, notes: `${input.reason}${input.note ? ': '+input.note : ''}` });
     return updated;
   });
+  if (!item) throw new AppError(500, 'No fue posible registrar la salida de stock.');
+  await recordAuditLog({ actor: request.auth!, action: 'inventory.stock_exit', entityType: 'product', entityId: item.id, summary: input.reason, metadata: { productId: input.productId, quantity: input.quantity, note: input.note ?? null } });
   response.status(201).json({ item });
 }));
 
-inventoryRouter.post('/adjust', requireRole('admin'), asyncHandler(async (request, response) => {
+inventoryRouter.post('/adjust', requireRole(...roleGroups.inventory), asyncHandler(async (request, response) => {
   const input = adjustInput.parse(request.body);
   if (input.type !== 'set' && input.quantity < 1) throw new AppError(400, 'La cantidad debe ser mayor a cero.');
   const item = await db.transaction(async (tx) => {
@@ -86,5 +92,7 @@ inventoryRouter.post('/adjust', requireRole('admin'), asyncHandler(async (reques
     await tx.insert(inventoryMovements).values({ businessId: business.id, productId: input.productId, userId: request.auth!.userId, type: 'manual_adjustment', quantity: movementQuantity, previousStock: product.stock, newStock: nextStock, referenceType: 'manual', referenceId: input.productId, notes: `${input.reason}${input.note ? ': '+input.note : ''}` });
     return updated;
   });
+  if (!item) throw new AppError(500, 'No fue posible registrar el ajuste de stock.');
+  await recordAuditLog({ actor: request.auth!, action: 'inventory.adjust', entityType: 'product', entityId: item.id, summary: input.reason, metadata: { productId: input.productId, type: input.type, quantity: input.quantity, note: input.note ?? null } });
   response.status(201).json({ item });
 }));

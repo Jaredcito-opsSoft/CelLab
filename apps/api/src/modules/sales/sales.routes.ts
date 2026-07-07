@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { businessSettings, clients, saleItems, sales, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
+import { roleGroups } from '../../lib/roles.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
 import { cancelSale, createSale } from './sales.service.js';
 
@@ -57,13 +59,16 @@ salesRouter.get('/:id', asyncHandler(async (request, response) => {
   response.json({ item: { ...sale, items, business } });
 }));
 
-salesRouter.post('/', asyncHandler(async (request, response) => {
+salesRouter.post('/', requireRole(...roleGroups.staff), asyncHandler(async (request, response) => {
   const input = createSchema.parse(request.body);
   const sale = await createSale(input, request.auth!.userId);
+  await recordAuditLog({ actor: request.auth!, action: 'sales.create', entityType: 'sale', entityId: sale.id, summary: `Venta ${sale.folio}`, metadata: { totalCents: sale.totalCents, paymentMethod: sale.paymentMethod, itemsCount: input.items.length } });
   response.status(201).json({ item: sale });
 }));
 
-salesRouter.post('/:id/cancel', requireRole('admin'), asyncHandler(async (request, response) => {
-  const sale = await cancelSale(idSchema.parse(request.params.id), cancelSchema.parse(request.body).reason, request.auth!.userId);
+salesRouter.post('/:id/cancel', requireRole(...roleGroups.adminOnly), asyncHandler(async (request, response) => {
+  const input = cancelSchema.parse(request.body);
+  const sale = await cancelSale(idSchema.parse(request.params.id), input.reason, request.auth!.userId);
+  await recordAuditLog({ actor: request.auth!, action: 'sales.cancel', entityType: 'sale', entityId: sale.id, summary: `Venta cancelada: ${sale.folio}`, metadata: { reason: input.reason, totalCents: sale.totalCents } });
   response.json({ item: sale });
 }));

@@ -1,8 +1,8 @@
-﻿import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, Boxes, RefreshCw } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 
-type Role = 'admin' | 'technician';
+type Role = 'admin' | 'manager' | 'staff' | 'technician' | 'viewer';
 type Product = { id: string; sku: string; name: string; costCents: number; priceCents: number; stock: number; minimumStock: number; active: boolean };
 type Movement = { id: string; productId: string; productName: string; userName: string; type: string; quantity: number; previousStock: number; newStock: number; referenceType: string; referenceId: string | null; notes: string | null; createdAt: string };
 
@@ -37,7 +37,7 @@ export function InventoryMovementsView({ token, role, currency }: { token: strin
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (role !== 'admin') return;
+    if (role !== 'admin' && role !== 'manager') return;
     setBusy(true); setError(''); setMessage('');
     const form = new FormData(event.currentTarget);
     const action = String(form.get('action'));
@@ -68,17 +68,24 @@ export function InventoryMovementsView({ token, role, currency }: { token: strin
     <div className="inventory-view">
       <section className="inventory-control-card">
         <div className="repair-card-heading"><Boxes /><div><p className="panel-eyebrow">Inventario LocalPOS</p><h2>Movimientos controlados de stock</h2></div></div>
-        {role === 'admin' ? <form className="ops-form inventory-action-form" onSubmit={submit}><label className="wide">Producto<select name="productId" required><option value="">Selecciona producto…</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · stock {product.stock} · costo {money(product.costCents, currency)}</option>)}</select></label><label>Operación<select name="action" defaultValue="entry"><option value="entry">Entrada de stock</option><option value="exit">Salida de stock</option><option value="adjust-increase">Ajuste: aumentar</option><option value="adjust-decrease">Ajuste: disminuir</option><option value="adjust-set">Ajuste: fijar existencia</option></select></label><label>Cantidad<input name="quantity" type="number" min="0" defaultValue="1" required /></label><label>Costo unitario<input name="unitCost" type="number" min="0" step=".01" placeholder="Solo entradas" /></label><label>Motivo<input name="reason" placeholder="Compra, merma, conteo físico…" /></label><label className="wide">Nota<input name="note" placeholder="Detalle opcional" /></label><div className="form-actions"><button className="panel-primary" disabled={busy}><RefreshCw />Registrar movimiento</button></div></form> : <p className="inventory-readonly">Tu rol puede consultar movimientos, pero solo admin puede modificar existencias.</p>}
+        {role === 'admin' || role === 'manager' ? <form className="ops-form inventory-action-form" onSubmit={submit}><label className="wide">Producto<select name="productId" required><option value="">Selecciona producto…</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · stock {product.stock} · costo {money(product.costCents, currency)}</option>)}</select></label><label>Operación<select name="action" defaultValue="entry"><option value="entry">Entrada de stock</option><option value="exit">Salida de stock</option><option value="adjust-increase">Ajuste: aumentar</option><option value="adjust-decrease">Ajuste: disminuir</option><option value="adjust-set">Ajuste: fijar existencia</option></select></label><label>Cantidad<input name="quantity" type="number" min="0" defaultValue="1" required /></label><label>Costo unitario<input name="unitCost" type="number" min="0" step=".01" placeholder="Solo entradas" /></label><label>Motivo<input name="reason" placeholder="Compra, merma, conteo físico…" /></label><label className="wide">Nota<input name="note" placeholder="Detalle opcional" /></label><div className="form-actions"><button className="panel-primary" disabled={busy}><RefreshCw />Registrar movimiento</button></div></form> : <p className="inventory-readonly">Tu rol puede consultar movimientos, pero solo admin o manager pueden modificar existencias.</p>}
         {message && <p className="settings-message">{message}</p>}{error && <p className="form-error">{error}</p>}
       </section>
 
       <section className="records-panel inventory-movement-panel">
+        <div className="inventory-log-head">
+          <div>
+            <p className="panel-eyebrow">Kardex de inventario</p>
+            <h3>Bitácora de movimientos</h3>
+          </div>
+          <span>{movements.length} registros</span>
+        </div>
         <div className="data-head movement-row"><span>Movimiento</span><span>Stock</span><span>Referencia</span><span>Usuario</span></div>
         {movements.length === 0 && <p className="empty-state">Aún no hay movimientos registrados.</p>}
         {movements.map((movement) => {
           const isIncrease = movement.newStock > movement.previousStock;
           const product = productMap.get(movement.productId);
-          return <article className="data-row movement-row" key={movement.id}><div><b>{isIncrease ? <ArrowUpCircle /> : <ArrowDownCircle />}{typeLabels[movement.type] ?? movement.type}</b><span>{movement.productName}{product?.sku ? ` · ${product.sku}` : ''}</span><small>{movement.notes}</small></div><div><b>{movement.previousStock} → {movement.newStock}</b><span>{movement.quantity} pzas.</span></div><div><span>{refTypeLabels[movement.referenceType] ?? movement.referenceType}</span><small>{date(movement.createdAt)}</small></div><span>{movement.userName}</span></article>;
+          return <article className={`data-row movement-row ${isIncrease ? 'movement-row--in' : 'movement-row--out'}`} key={movement.id}><div className="movement-main"><b>{isIncrease ? <ArrowUpCircle /> : <ArrowDownCircle />}{typeLabels[movement.type] ?? movement.type}</b><span>{movement.productName}{product?.sku ? ` · ${product.sku}` : ''}</span><small>{movement.notes}</small></div><div className="movement-stock"><b>{movement.previousStock} → {movement.newStock}</b><span>{movement.quantity} pzas.</span></div><div className="movement-reference"><span>{refTypeLabels[movement.referenceType] ?? movement.referenceType}</span><small>{date(movement.createdAt)}</small></div><span className="movement-user">{movement.userName}</span></article>;
         })}
       </section>
     </div>

@@ -1,4 +1,4 @@
-﻿export type FaqCategory = 'diagnostico' | 'cotizacion' | 'antes_de_reparar' | 'garantia' | 'refacciones';
+export type FaqCategory = 'diagnostico' | 'cotizacion' | 'antes_de_reparar' | 'garantia' | 'refacciones';
 
 export interface FaqItem {
   id: string;

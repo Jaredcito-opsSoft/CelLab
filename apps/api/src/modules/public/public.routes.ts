@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { businessSettings, clients, repairs } from '../../db/schema.js';
+import { isModuleEnabled } from '../modules/modules.service.js';
 
 export const publicRouter = Router();
 
@@ -26,7 +27,7 @@ const normalizePhone = (value: string) => value.replace(/\D/g, '').slice(-10);
 const notFound = { found: false, message: 'No encontramos una reparaci贸n con esos datos. Revisa el folio o comun铆cate por WhatsApp.' };
 
 publicRouter.get('/', (_request, response) => {
-  response.json({ business: 'LocalPOS', services: ['Diagn髎tico', 'Reparaci髇 celular', 'Accesorios'], warranty: 'La vigencia depende del servicio realizado y se indica en la nota de entrega.' });
+  response.json({ business: 'LocalPOS', services: ['Diagn贸stico', 'Reparaci贸n celular', 'Accesorios'], warranty: 'La vigencia depende del servicio realizado y se indica en la nota de entrega.' });
 });
 publicRouter.get('/business-profile', async (_request, response, next) => {
   try {
@@ -63,6 +64,13 @@ publicRouter.get('/business-profile', async (_request, response, next) => {
 
 publicRouter.post('/repairs/track', trackLimiter, async (request, response, next) => {
   try {
+    const trackingEnabled = await isModuleEnabled('public_tracking');
+    const repairsEnabled = await isModuleEnabled('repairs');
+    if (!trackingEnabled || !repairsEnabled) {
+      response.status(403).json({ error: 'Este m贸dulo no est谩 activado para este negocio.' });
+      return;
+    }
+
     const input = trackInput.parse(request.body);
     const [business] = await db.select({ businessName: businessSettings.businessName }).from(businessSettings).limit(1);
     const [row] = await db.select({

@@ -1,4 +1,4 @@
-﻿import { HeroExplodedPhone } from './HeroExplodedPhone';
+import { HeroExplodedPhone } from './HeroExplodedPhone';
 import { ArrowIcon, WhatsAppIcon } from './icons';
 import { buildWhatsappLink, useBusinessProfile } from '../../hooks/useBusinessProfile';
 
@@ -16,7 +16,7 @@ export function HeroSection() {
       <div className="lp-hero__content">
         <p className="lp-eyebrow lp-hero-enter-1">Servicio técnico local · Tuxtla Gutiérrez</p>
         <h1 className="lp-hero-enter-2" id="hero-title">
-          Diagnóstico claro.
+          Diagnóstico claro.{' '}
           <span>Reparación confiable.</span>
         </h1>
         <p className="lp-hero__lead lp-hero-enter-3">

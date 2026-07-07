@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { WhatsAppIcon } from './icons';
 import { brands, quoteIssues } from './landingData';
 import { buildWhatsappLink, useBusinessProfile } from '../../hooks/useBusinessProfile';
@@ -46,7 +46,7 @@ export function BrandsSection() {
       <div className="lp-brand-lab" data-reveal>
         <div className="lp-brand-tabs" role="tablist" aria-label="Marcas de celulares">
           {brands.map((brand) => (
-            <button className={brand.id === activeBrand.id ? 'is-active' : ''} type="button" role="tab" aria-selected={brand.id === activeBrand.id} key={brand.id} onClick={() => changeBrand(brand.id)}>
+            <button className={brand.id === activeBrand.id ? 'is-active' : ''} type="button" role="tab" aria-selected={brand.id === activeBrand.id} aria-label={`${brand.name}: ${brand.family}`} key={brand.id} onClick={() => changeBrand(brand.id)}>
               <span>{brand.name}</span>
               <small>{brand.family}</small>
             </button>
