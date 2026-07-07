@@ -1,4 +1,4 @@
-﻿# Hito 9A-R — Reparación de regresión visual, UTF-8 y estabilización del panel
+# Hito 9A-R — Reparación de regresión visual, UTF-8 y estabilización del panel
 
 Fecha: 2026-06-29
 

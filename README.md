@@ -31,10 +31,14 @@ pnpm dev
 - Panel LocalPOS: `http://localhost:5173/panel`
 - ConfiguraciÃ³n: `http://localhost:5173/panel/configuracion`
 
+## Fuente de verdad para agentes
+
+Antes de proponer cambios funcionales, revisa `docs/AI_SOURCE_OF_TRUTH.md`. El contrato actual es: cÃ³digo vigente > schema/migraciones > smoke tests cerrados > docs de hito > memoria conversacional.
+
 ## Siguiente fase
 
-POS-lite con ventas `VTA-00001`, pagos, movimientos de inventario, descuento de stock transaccional y notas imprimibles alimentadas por `business_settings`.
+Hito 10 prioriza fuente de verdad, limpieza UTF-8 y claridad UX del panel sin cambiar reglas transaccionales. DespuÃ©s siguen usuarios, roles y auditorÃ­a inicial.
 
-## Hito 8.5 — caja y operación real
+## Hito 8.5 â€” caja y operaciÃ³n real
 
-Se agregaron correcciones funcionales para caja, ventas y reparaciones: política configurable de caja abierta, timezone por negocio, costo snapshot en ventas, validación de sobrepagos, permisos endurecidos y perfil público del negocio para eliminar teléfonos hardcodeados en WhatsApp. Ver `docs/hito-8-5-correcciones-funcionales-caja-ventas.md`.
+Se agregaron correcciones funcionales para caja, ventas y reparaciones: polÃ­tica configurable de caja abierta, timezone por negocio, costo snapshot en ventas, validaciÃ³n de sobrepagos, permisos endurecidos y perfil pÃºblico del negocio para eliminar telÃ©fonos hardcodeados en WhatsApp. Ver `docs/hito-8-5-correcciones-funcionales-caja-ventas.md`.
