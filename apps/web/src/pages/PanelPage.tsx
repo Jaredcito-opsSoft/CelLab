@@ -84,6 +84,15 @@ const nav: { key: Section; label: string; icon: LucideIcon; module?: BusinessMod
 ];
 
 const sectionModules: Partial<Record<Section, BusinessModuleKey>> = Object.fromEntries(nav.filter((item) => item.module).map((item) => [item.key, item.module])) as Partial<Record<Section, BusinessModuleKey>>;
+const moduleFallback = (moduleKey: BusinessModuleKey): BusinessModule => ({
+  key: moduleKey,
+  label: nav.find((item) => item.module === moduleKey)?.label ?? moduleKey,
+  description: '',
+  category: 'operations',
+  isCore: false,
+  defaultEnabled: false,
+  enabled: false,
+});
 
 function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [section, setSection] = useState<Section>(sectionFromPath);
@@ -96,6 +105,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
+  const [modulesLoaded, setModulesLoaded] = useState(false);
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem(FOCUS_MODE) === '1');
   const role = tokenRole(token);
   const canFocus = focusSections.includes(section);
@@ -104,7 +114,10 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   const isModuleEnabled = (moduleKey?: BusinessModuleKey) => !moduleKey || enabledModules.has(moduleKey);
   const visibleNav = nav.filter((item) => isModuleEnabled(item.module));
   const blockedModuleKey = sectionModules[section];
-  const blockedModule = blockedModuleKey && !isModuleEnabled(blockedModuleKey) ? modules.find((module) => module.key === blockedModuleKey) ?? null : null;
+  const waitingForModuleState = Boolean(blockedModuleKey && !modulesLoaded);
+  const blockedModule = modulesLoaded && blockedModuleKey && !isModuleEnabled(blockedModuleKey)
+    ? modules.find((module) => module.key === blockedModuleKey) ?? moduleFallback(blockedModuleKey)
+    : null;
 
   const loadBusiness = useCallback(async () => {
     try {
@@ -116,6 +129,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   }, [token]);
 
   const loadModules = useCallback(async () => {
+    setModulesLoaded(false);
     try {
       const data = await apiRequest<{ items: BusinessModule[] }>('/api/operations/modules', {}, token);
       setModules(data.items);
@@ -125,6 +139,8 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
         { key: 'cash', label: 'Caja y turnos', description: '', category: 'base', isCore: true, defaultEnabled: true, enabled: true },
         { key: 'inventory_basic', label: 'Inventario básico', description: '', category: 'base', isCore: true, defaultEnabled: true, enabled: true },
       ]);
+    } finally {
+      setModulesLoaded(true);
     }
   }, [token]);
 
@@ -137,7 +153,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   }, []);
 
   const load = useCallback(async () => {
-    if (blockedModule) return;
+    if (blockedModule || waitingForModuleState) return;
     setBusy(true);
     setError('');
     try {
@@ -159,7 +175,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
     } finally {
       setBusy(false);
     }
-  }, [section, search, token, onLogout, blockedModule]);
+  }, [section, search, token, onLogout, blockedModule, waitingForModuleState]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -201,7 +217,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
           </div>}
         </header>
         {error && <div className="panel-alert">{error}<button onClick={() => void load()}>Reintentar</button></div>}
-        {busy && <div className="panel-loading">Sincronizando operación…</div>}
+        {(busy || waitingForModuleState) && <div className="panel-loading">Sincronizando operación…</div>}
         {blockedModule && <ModuleDisabled module={blockedModule} />}
         {!blockedModule && !busy && section === 'dashboard' && <Dashboard summary={summary} business={business} modules={modules} onNavigate={navigate} />}
         {!blockedModule && !busy && section === 'clients' && <Clients token={token} items={clients} reload={load} />}
