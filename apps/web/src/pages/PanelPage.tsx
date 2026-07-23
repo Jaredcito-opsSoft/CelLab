@@ -27,6 +27,27 @@ type DashboardSummary = { todaySalesCount: number; todaySalesTotalCents: number;
 type ReportSummary = { salesCount: number; incomeCents: number; pendingRepairs: number; deliveredRepairs: number; lowStockProducts: number; recentMovements: { id: string; type: string; previousStock: number; newStock: number; createdAt: string; productName: string; userName: string }[] };
 type BusinessSettings = { id: string; businessName: string; businessType: string; logoUrl: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; ticketMessage: string | null; warrantyMessage: string | null; currency: string; primaryColor: string; requireOpenCashForMoneyOperations: boolean; timezone: string; updatedAt: string };
 type Role = UserRole;
+type SessionPayload = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: Role;
+    active: boolean;
+    lastLoginAt: string | null;
+  };
+  membership: {
+    id: string;
+    role: Role;
+    active: boolean;
+  };
+  business: {
+    id: string;
+    name: string;
+    slug: string;
+    status: 'active' | 'inactive';
+  };
+};
 
 const TOKEN = 'cellab-panel-token';
 const FOCUS_MODE = 'cellab-panel-focus-mode';
@@ -62,18 +83,92 @@ function sectionFromPath(): Section {
 function sectionPath(section: Section) { return ({ clients: '/panel/clientes', products: '/panel/inventario', suppliers: '/panel/proveedores', purchases: '/panel/compras', sales: '/panel/ventas', 'sales-history': '/panel/ventas/historial', layaways: '/panel/apartados', 'inventory-movements': '/panel/inventario/movimientos', repairs: '/panel/reparaciones', warranties: '/panel/garantias', cash: '/panel/caja', tracking: '/panel/rastreo', reports: '/panel/reportes', audit: '/panel/auditoria', settings: '/panel/configuracion' } as Partial<Record<Section, string>>)[section] ?? '/panel'; }
 function currentSaleId() { return window.location.pathname.split('/').pop() ?? ''; }
 function currentRepairId() { return window.location.pathname.split('/').pop() ?? ''; }
-function tokenRole(token: string): Role {
-  try {
-    const part = token.split('.')[1] ?? '';
-    const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')));
-    return ['admin', 'manager', 'staff', 'technician', 'viewer'].includes(payload.role) ? payload.role : 'technician';
-  } catch {
-    return 'technician';
+export function PanelPage() {
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN) ?? '');
+  const [session, setSession] = useState<SessionPayload | null>(null);
+  const [validatingSession, setValidatingSession] = useState(Boolean(token));
+  const [authMessage, setAuthMessage] = useState('');
+
+  const logout = useCallback((message = '') => {
+    localStorage.removeItem(TOKEN);
+    setToken('');
+    setSession(null);
+    setValidatingSession(false);
+    setAuthMessage(message);
+  }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      if (localStorage.getItem(TOKEN)) {
+        logout('Tu sesión ya no es válida. Inicia sesión nuevamente.');
+      }
+    };
+    window.addEventListener('localpos:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('localpos:unauthorized', handleUnauthorized);
+  }, [logout]);
+
+  useEffect(() => {
+    if (!token) {
+      setSession(null);
+      setValidatingSession(false);
+      return;
+    }
+
+    let active = true;
+    setValidatingSession(true);
+    void apiRequest<SessionPayload>('/api/auth/session', {}, token)
+      .then((value) => {
+        if (!active) return;
+        setSession(value);
+        setAuthMessage('');
+      })
+      .catch((error) => {
+        if (!active) return;
+        logout(error instanceof Error ? error.message : 'No fue posible validar la sesión.');
+      })
+      .finally(() => {
+        if (active) setValidatingSession(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, logout]);
+
+  if (!token) {
+    return <Login message={authMessage} onLogin={(value) => {
+      localStorage.setItem(TOKEN, value);
+      setToken(value);
+      setValidatingSession(true);
+    }} />;
   }
+  if (validatingSession || !session) {
+    return <main className="panel-login"><div className="panel-loading">Validando acceso al negocio…</div></main>;
+  }
+  return <Panel token={token} session={session} onLogout={() => logout()} />;
 }
 
-export function PanelPage() { const [token, setToken] = useState(() => localStorage.getItem(TOKEN) ?? ''); if (!token) return <Login onLogin={(value) => { localStorage.setItem(TOKEN, value); setToken(value); }} />; return <Panel token={token} onLogout={() => { localStorage.removeItem(TOKEN); setToken(''); }} />; }
-function Login({ onLogin }: { onLogin: (token: string) => void }) { const [error, setError] = useState(''); const [busy, setBusy] = useState(false); async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setBusy(true); setError(''); const data = new FormData(event.currentTarget); try { const result = await apiRequest<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) }); onLogin(result.token); } catch (e) { setError(e instanceof Error ? e.message : 'No fue posible iniciar sesión.'); } finally { setBusy(false); } } return <main className="panel-login"><section className="login-card"><div className="login-mark"><Store /><span>LOCALPOS / OPERACIONES</span></div><p className="panel-eyebrow">Acceso operativo</p><h1>Tu negocio, listo para operar.</h1><p>Ventas, inventario, clientes y servicios desde una base configurable.</p><form onSubmit={submit}><label>Correo<input name="email" type="email" autoComplete="username" required /></label><label>Contraseña<input name="password" type="password" autoComplete="current-password" required /></label>{error && <p className="form-error">{error}</p>}<button className="panel-primary" disabled={busy}>{busy ? 'Verificando…' : 'Entrar al panel'}</button></form><small><ShieldCheck /> Sesión protegida y acciones registradas.</small></section></main>; }
+function Login({ onLogin, message = '' }: { onLogin: (token: string) => void; message?: string }) {
+  const [error, setError] = useState(message);
+  const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    const data = new FormData(event.currentTarget);
+    try {
+      const result = await apiRequest<{ token: string }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: data.get('email'), password: data.get('password') }),
+      });
+      onLogin(result.token);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No fue posible iniciar sesión.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <main className="panel-login"><section className="login-card"><div className="login-mark"><Store /><span>LOCALPOS / OPERACIONES</span></div><p className="panel-eyebrow">Acceso operativo</p><h1>Tu negocio, listo para operar.</h1><p>Ventas, inventario, clientes y servicios desde una base configurable.</p><form onSubmit={submit}><label>Correo<input name="email" type="email" autoComplete="username" required /></label><label>Contraseña<input name="password" type="password" autoComplete="current-password" required /></label>{error && <p className="form-error">{error}</p>}<button className="panel-primary" disabled={busy}>{busy ? 'Verificando…' : 'Entrar al panel'}</button></form><small><ShieldCheck /> Sesión protegida y acciones registradas.</small></section></main>;
+}
 
 type NavigationGroup = 'start' | 'operation' | 'catalog' | 'management';
 type NavigationItem = { key: Section; label: string; icon: LucideIcon; group: NavigationGroup; module?: BusinessModuleKey; adminOnly?: boolean };
@@ -109,7 +204,7 @@ const moduleFallback = (moduleKey: BusinessModuleKey): BusinessModule => ({
   enabled: false,
 });
 
-function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
+function Panel({ token, session, onLogout }: { token: string; session: SessionPayload; onLogout: () => void }) {
   const [section, setSection] = useState<Section>(sectionFromPath);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [business, setBusiness] = useState<BusinessSettings | null>(null);
@@ -122,7 +217,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   const [search, setSearch] = useState('');
   const [modulesLoaded, setModulesLoaded] = useState(false);
   const [focusMode, setFocusMode] = useState(() => localStorage.getItem(FOCUS_MODE) === '1');
-  const role = tokenRole(token);
+  const role = session.membership.role;
   const canFocus = focusSections.includes(section);
   const isFocusMode = canFocus && focusMode;
   const enabledModules = new Set(modules.filter((module) => module.enabled).map((module) => module.key));
@@ -212,7 +307,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
   return (
     <main className={rootClass} data-section={section} style={{ '--ops-blue': business?.primaryColor ?? '#185a70' } as CSSProperties}>
       <aside className="panel-sidebar" aria-label="Navegación principal">
-        <a className="panel-brand" href="/"><span>LP</span><b>LocalPOS<small>{business?.businessName ?? 'Negocio local'}</small></b></a>
+        <a className="panel-brand" href="/"><span>LP</span><b>LocalPOS<small>{business?.businessName ?? session.business.name}</small></b></a>
         <nav className="panel-navigation" aria-label="Módulos del negocio">{navigationGroups.map((group) => {
           const groupItems = visibleNav.filter((item) => item.group === group);
           if (groupItems.length === 0) return null;
@@ -226,7 +321,7 @@ function Panel({ token, onLogout }: { token: string; onLogout: () => void }) {
       <section className="panel-workspace">
         <header>
           <div>
-            <p className="panel-eyebrow">LocalPOS / {business?.businessName ?? 'Configurando negocio'}</p>
+            <p className="panel-eyebrow">LocalPOS / {business?.businessName ?? session.business.name}</p>
             <h1>{title}</h1>
           </div>
           {(showSearch || canFocus) && <div className="panel-header-actions">
