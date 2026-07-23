@@ -23,8 +23,11 @@ export const requireAuth: RequestHandler = async (request, response, next) => {
     const userId = typeof payload.sub === 'string' ? payload.sub : '';
     const membershipId = typeof payload.membershipId === 'string' ? payload.membershipId : '';
     const businessId = typeof payload.businessId === 'string' ? payload.businessId : '';
+    const sessionVersion = typeof payload.sessionVersion === 'number'
+      ? payload.sessionVersion
+      : Number.NaN;
 
-    if (!userId || !membershipId || !businessId) {
+    if (!userId || !membershipId || !businessId || !Number.isInteger(sessionVersion)) {
       response.status(401).json({
         error: 'La sesión es anterior al contexto de negocio. Inicia sesión nuevamente.',
         code: 'TENANT_CONTEXT_REQUIRED',
@@ -38,6 +41,7 @@ export const requireAuth: RequestHandler = async (request, response, next) => {
         userName: users.name,
         email: users.email,
         userActive: users.active,
+        sessionVersion: users.sessionVersion,
         membershipId: businessMemberships.id,
         membershipRole: businessMemberships.role,
         membershipActive: businessMemberships.active,
@@ -58,6 +62,7 @@ export const requireAuth: RequestHandler = async (request, response, next) => {
       || !session.userActive
       || !session.membershipActive
       || session.businessStatus !== 'active'
+      || session.sessionVersion !== sessionVersion
       || !isUserRole(session.membershipRole)
     ) {
       response.status(401).json({

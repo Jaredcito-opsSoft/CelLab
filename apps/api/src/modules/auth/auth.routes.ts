@@ -81,6 +81,7 @@ authRouter.post('/login', limiter, asyncHandler(async (request, response) => {
   const token = await new SignJWT({
     membershipId: membership.membershipId,
     businessId: membership.businessId,
+    sessionVersion: user.sessionVersion,
     role: membership.membershipRole,
     email: user.email,
     name: user.name,

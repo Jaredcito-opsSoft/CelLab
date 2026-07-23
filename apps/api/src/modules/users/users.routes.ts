@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { and, count, desc, eq, ilike, ne, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { businessMemberships, users } from '../../db/schema.js';
+import { businessMemberships, businesses, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
@@ -140,50 +140,68 @@ usersRouter.patch('/:id', asyncHandler(async (request, response) => {
   const userId = idSchema.parse(request.params.id);
   const input = updateSchema.parse(request.body);
   const businessId = request.auth!.businessId;
-  const current = await getBusinessUser(businessId, userId);
-  if (!current) throw new AppError(404, 'Usuario no encontrado en este negocio.');
-
-  if (userId === request.auth!.userId && input.active === false) {
-    throw new AppError(400, 'No puedes desactivar tu propia membresía.');
-  }
-  if (userId === request.auth!.userId && input.role && input.role !== 'admin') {
-    throw new AppError(400, 'No puedes quitarte el rol administrador.');
-  }
-
-  const removesActiveAdmin = current.active
-    && current.role === 'admin'
-    && (input.active === false || (input.role !== undefined && input.role !== 'admin'));
-  if (removesActiveAdmin) {
-    const [adminCount] = await db
-      .select({ value: count() })
-      .from(businessMemberships)
-      .where(and(
-        eq(businessMemberships.businessId, businessId),
-        eq(businessMemberships.role, 'admin'),
-        eq(businessMemberships.active, true),
-      ));
-    if ((adminCount?.value ?? 0) <= 1) {
-      throw new AppError(
-        409,
-        'El negocio debe conservar al menos una membresía administradora activa.',
-        'LAST_ACTIVE_ADMIN_REQUIRED',
-      );
-    }
-  }
-
   const normalizedEmail = input.email?.toLowerCase();
-  if (normalizedEmail) {
-    const [duplicate] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.email, normalizedEmail), ne(users.id, userId)))
-      .limit(1);
-    if (duplicate) {
-      throw new AppError(409, 'Ya existe una identidad con ese correo.', 'EMAIL_ALREADY_EXISTS');
-    }
-  }
-
   const item = await db.transaction(async (tx) => {
+    const [business] = await tx
+      .select({ id: businesses.id, status: businesses.status })
+      .from(businesses)
+      .where(eq(businesses.id, businessId))
+      .for('update');
+    if (!business || business.status !== 'active') {
+      throw new AppError(404, 'Negocio no disponible.', 'BUSINESS_NOT_AVAILABLE');
+    }
+
+    // El bloqueo de la fila del negocio serializa todas las mutaciones de
+    // membresías administrativas. El rol del actor se revalida después de
+    // adquirirlo para impedir que una petición ya autorizada opere con un rol
+    // degradado por otra transacción concurrente.
+    const actor = await getBusinessUser(businessId, request.auth!.userId, tx);
+    if (!actor?.identityActive || !actor.active || actor.role !== 'admin') {
+      throw new AppError(403, 'Tu rol no permite realizar esta acción.', 'ROLE_FORBIDDEN');
+    }
+
+    const current = await getBusinessUser(businessId, userId, tx);
+    if (!current) throw new AppError(404, 'Usuario no encontrado en este negocio.');
+
+    if (userId === request.auth!.userId && input.active === false) {
+      throw new AppError(400, 'No puedes desactivar tu propia membresía.');
+    }
+    if (userId === request.auth!.userId && input.role && input.role !== 'admin') {
+      throw new AppError(400, 'No puedes quitarte el rol administrador.');
+    }
+
+    const removesActiveAdmin = current.active
+      && current.role === 'admin'
+      && (input.active === false || (input.role !== undefined && input.role !== 'admin'));
+    if (removesActiveAdmin) {
+      const [adminCount] = await tx
+        .select({ value: count() })
+        .from(businessMemberships)
+        .where(and(
+          eq(businessMemberships.businessId, businessId),
+          eq(businessMemberships.role, 'admin'),
+          eq(businessMemberships.active, true),
+        ));
+      if ((adminCount?.value ?? 0) <= 1) {
+        throw new AppError(
+          409,
+          'El negocio debe conservar al menos una membresía administradora activa.',
+          'LAST_ACTIVE_ADMIN_REQUIRED',
+        );
+      }
+    }
+
+    if (normalizedEmail) {
+      const [duplicate] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, normalizedEmail), ne(users.id, userId)))
+        .limit(1);
+      if (duplicate) {
+        throw new AppError(409, 'Ya existe una identidad con ese correo.', 'EMAIL_ALREADY_EXISTS');
+      }
+    }
+
     const identityChanges: Partial<typeof users.$inferInsert> = {
       updatedAt: new Date(),
     };
@@ -234,7 +252,11 @@ usersRouter.post('/:id/reset-password', asyncHandler(async (request, response) =
   const passwordHash = await bcrypt.hash(input.password, 12);
   await db
     .update(users)
-    .set({ passwordHash, updatedAt: new Date() })
+    .set({
+      passwordHash,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, userId));
   const item = await getBusinessUser(businessId, userId);
   if (!item) throw new AppError(500, 'No fue posible reiniciar la contraseña.');
