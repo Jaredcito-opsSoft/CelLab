@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const userRole = pgEnum('user_role', ['admin', 'manager', 'staff', 'technician', 'viewer']);
+export const businessStatus = pgEnum('business_status', ['active', 'inactive']);
 export const repairStatus = pgEnum('repair_status', ['received', 'diagnosis', 'awaiting_authorization', 'in_repair', 'testing', 'ready', 'delivered', 'cancelled']);
 export const paymentMethod = pgEnum('payment_method', ['cash', 'transfer', 'card', 'mixed']);
 export const saleStatus = pgEnum('sale_status', ['completed', 'partially_refunded', 'refunded', 'cancelled']);
@@ -21,8 +22,19 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 };
 
-export const businessSettings = pgTable('business_settings', {
+export const businesses = pgTable('businesses', {
   id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 160 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull(),
+  status: businessStatus('status').default('active').notNull(),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex('businesses_slug_idx').on(t.slug),
+  index('businesses_status_idx').on(t.status),
+]);
+
+export const businessSettings = pgTable('business_settings', {
+  id: uuid('id').primaryKey().references(() => businesses.id, { onDelete: 'restrict' }),
   businessName: varchar('business_name', { length: 160 }).notNull(),
   businessType: varchar('business_type', { length: 160 }).notNull(),
   logoUrl: text('logo_url'),
@@ -49,6 +61,20 @@ export const users = pgTable('users', {
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   ...timestamps,
 }, (t) => [uniqueIndex('users_email_idx').on(t.email)]);
+
+export const businessMemberships = pgTable('business_memberships', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  businessId: uuid('business_id').notNull().references(() => businesses.id, { onDelete: 'restrict' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  role: userRole('role').notNull(),
+  active: boolean('active').default(true).notNull(),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex('business_memberships_business_user_idx').on(t.businessId, t.userId),
+  index('business_memberships_user_id_idx').on(t.userId),
+  index('business_memberships_business_id_idx').on(t.businessId),
+  index('business_memberships_user_active_idx').on(t.userId, t.active),
+]);
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -622,6 +648,20 @@ export const cashMovements = pgTable('cash_movements', {
   index('cash_movements_reference_idx').on(t.referenceType, t.referenceId),
   check('cash_movements_amount_positive', sql`${t.amountCents} > 0`),
 ]);
+export const businessesRelations = relations(businesses, ({ one, many }) => ({
+  settings: one(businessSettings, { fields: [businesses.id], references: [businessSettings.id] }),
+  memberships: many(businessMemberships),
+}));
+export const businessSettingsRelations = relations(businessSettings, ({ one }) => ({
+  business: one(businesses, { fields: [businessSettings.id], references: [businesses.id] }),
+}));
+export const usersRelations = relations(users, ({ many }) => ({
+  memberships: many(businessMemberships),
+}));
+export const businessMembershipsRelations = relations(businessMemberships, ({ one }) => ({
+  business: one(businesses, { fields: [businessMemberships.businessId], references: [businesses.id] }),
+  user: one(users, { fields: [businessMemberships.userId], references: [users.id] }),
+}));
 export const clientsRelations = relations(clients, ({ many }) => ({ repairs: many(repairs) }));
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),

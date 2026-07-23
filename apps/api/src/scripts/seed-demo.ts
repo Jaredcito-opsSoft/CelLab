@@ -4,7 +4,9 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { db, queryClient } from '../db/client.js';
 import {
+  businessMemberships,
   businessModules,
+  businesses,
   businessSettings,
   cashRegisters,
   categories,
@@ -109,13 +111,45 @@ try {
           requireOpenCashForMoneyOperations: true,
         };
 
+    await tx.insert(businesses).values({
+      id: BUSINESS_ID,
+      name: business.businessName,
+      slug: input.profile === 'cellab' ? 'cellab-tuxtla-demo' : 'localpos-demo',
+      status: 'active',
+    }).onConflictDoUpdate({
+      target: businesses.id,
+      set: {
+        name: business.businessName,
+        slug: input.profile === 'cellab' ? 'cellab-tuxtla-demo' : 'localpos-demo',
+        status: 'active',
+        updatedAt: now,
+      },
+    });
+
     await tx.insert(businessSettings).values({ id: BUSINESS_ID, ...business })
       .onConflictDoUpdate({ target: businessSettings.id, set: { ...business, updatedAt: now } });
 
     const adminId = await upsertUser(tx, { name: 'Administrador Demo', email: 'admin@demo.localpos.test', role: 'admin' });
-    await upsertUser(tx, { name: 'Gerente Demo', email: 'gerente@demo.localpos.test', role: 'manager' });
-    await upsertUser(tx, { name: 'Caja Demo', email: 'caja@demo.localpos.test', role: 'staff' });
+    const managerId = await upsertUser(tx, { name: 'Gerente Demo', email: 'gerente@demo.localpos.test', role: 'manager' });
+    const staffId = await upsertUser(tx, { name: 'Caja Demo', email: 'caja@demo.localpos.test', role: 'staff' });
     const viewerId = await upsertUser(tx, { name: 'Consulta Demo', email: 'consulta@demo.localpos.test', role: 'viewer' });
+
+    for (const membership of [
+      { userId: adminId, role: 'admin' as const },
+      { userId: managerId, role: 'manager' as const },
+      { userId: staffId, role: 'staff' as const },
+      { userId: viewerId, role: 'viewer' as const },
+    ]) {
+      await tx.insert(businessMemberships).values({
+        businessId: BUSINESS_ID,
+        userId: membership.userId,
+        role: membership.role,
+        active: true,
+      }).onConflictDoUpdate({
+        target: [businessMemberships.businessId, businessMemberships.userId],
+        set: { role: membership.role, active: true, updatedAt: now },
+      });
+    }
 
     const enabledModules = new Set<BusinessModuleKey>(['core_pos', 'cash', 'inventory_basic']);
     if (input.profile === 'cellab') {
