@@ -31,7 +31,7 @@ export const businesses = pgTable('businesses', {
 }, (t) => [
   uniqueIndex('businesses_slug_idx').on(t.slug),
   index('businesses_status_idx').on(t.status),
-]);
+]).enableRLS();
 
 export const businessSettings = pgTable('business_settings', {
   id: uuid('id').primaryKey().references(() => businesses.id, { onDelete: 'restrict' }),
@@ -59,6 +59,7 @@ export const users = pgTable('users', {
   role: userRole('role').default('technician').notNull(),
   active: boolean('active').default(true).notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  sessionVersion: integer('session_version').default(1).notNull(),
   ...timestamps,
 }, (t) => [uniqueIndex('users_email_idx').on(t.email)]);
 
@@ -74,7 +75,7 @@ export const businessMemberships = pgTable('business_memberships', {
   index('business_memberships_user_id_idx').on(t.userId),
   index('business_memberships_business_id_idx').on(t.businessId),
   index('business_memberships_user_active_idx').on(t.userId, t.active),
-]);
+]).enableRLS();
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),

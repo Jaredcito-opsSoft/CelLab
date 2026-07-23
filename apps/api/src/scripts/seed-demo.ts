@@ -70,9 +70,24 @@ const productRows = [
 ] as const;
 
 async function upsertUser(executor: any, data: { name: string; email: string; role: 'admin' | 'manager' | 'staff' | 'viewer' }) {
-  const [existing] = await executor.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1);
+  const [existing] = await executor.select({
+    id: users.id,
+    passwordHash: users.passwordHash,
+  }).from(users).where(eq(users.email, data.email)).limit(1);
   if (existing) {
-    const [updated] = await executor.update(users).set({ name: data.name, passwordHash, role: data.role, active: true, updatedAt: now }).where(eq(users.id, existing.id)).returning({ id: users.id });
+    const passwordMatches = await bcrypt.compare(input.password, existing.passwordHash);
+    const [updated] = await executor.update(users).set({
+      name: data.name,
+      ...(passwordMatches
+        ? {}
+        : {
+            passwordHash,
+            sessionVersion: sql`${users.sessionVersion} + 1`,
+          }),
+      role: data.role,
+      active: true,
+      updatedAt: now,
+    }).where(eq(users.id, existing.id)).returning({ id: users.id });
     return updated.id as string;
   }
   const [created] = await executor.insert(users).values({ ...data, passwordHash, active: true }).returning({ id: users.id });

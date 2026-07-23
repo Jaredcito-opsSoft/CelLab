@@ -1,5 +1,5 @@
 {
-  "id": "7b281869-a31b-4ff5-ad62-066bbe4d46be",
+  "id": "29376739-e5e9-42fc-bf80-0e162b8d29ba",
   "prevId": "2172cb50-bac1-4a65-b7bc-a3517dbd9713",
   "version": "7",
   "dialect": "postgresql",
@@ -319,7 +319,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.business_modules": {
       "name": "business_modules",
@@ -671,7 +671,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.cash_movements": {
       "name": "cash_movements",
@@ -5234,6 +5234,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "session_version": {
+          "name": "session_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "created_at": {
           "name": "created_at",

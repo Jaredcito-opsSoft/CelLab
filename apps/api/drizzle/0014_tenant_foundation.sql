@@ -38,6 +38,8 @@ CREATE INDEX "businesses_status_idx" ON "businesses" USING btree ("status");
 --> statement-breakpoint
 ALTER TABLE "business_settings" ALTER COLUMN "id" DROP DEFAULT;
 --> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "session_version" integer DEFAULT 1 NOT NULL;
+--> statement-breakpoint
 ALTER TABLE "business_settings"
 	ADD CONSTRAINT "business_settings_id_businesses_id_fk"
 	FOREIGN KEY ("id") REFERENCES "public"."businesses"("id")

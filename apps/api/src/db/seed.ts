@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { env } from '../config/env.js';
 import { db, queryClient } from './client.js';
 import { businessMemberships, businesses, businessSettings, cashRegisters, users } from './schema.js';
@@ -62,14 +62,28 @@ if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
   process.exit(0);
 }
 const email = env.ADMIN_EMAIL.toLowerCase();
-const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
-const current = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+const current = await db.select({
+  id: users.id,
+  passwordHash: users.passwordHash,
+}).from(users).where(eq(users.email, email)).limit(1);
 let adminUserId: string;
 if (current[0]) {
   adminUserId = current[0].id;
-  await db.update(users).set({ passwordHash, active: true, role: 'admin', updatedAt: new Date() }).where(eq(users.id, adminUserId));
+  const passwordMatches = await bcrypt.compare(env.ADMIN_PASSWORD, current[0].passwordHash);
+  await db.update(users).set({
+    ...(passwordMatches
+      ? {}
+      : {
+          passwordHash: await bcrypt.hash(env.ADMIN_PASSWORD, 12),
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        }),
+    active: true,
+    role: 'admin',
+    updatedAt: new Date(),
+  }).where(eq(users.id, adminUserId));
   console.log(`Administrador actualizado: ${email}`);
 } else {
+  const passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
   const [created] = await db.insert(users).values({ name: 'Administrador', email, passwordHash, role: 'admin' }).returning({ id: users.id });
   if (!created) throw new Error('No fue posible crear el administrador inicial.');
   adminUserId = created.id;
