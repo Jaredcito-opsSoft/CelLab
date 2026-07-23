@@ -111,6 +111,13 @@ La migración incremental es:
 
 No se modificaron las migraciones `0000`–`0013`.
 
+`businesses` y `business_memberships` declaran `.enableRLS()` en el esquema
+Drizzle. El snapshot generado por `drizzle-kit 0.31.10` registra
+`isRLSEnabled: true` para ambas tablas y `0014` ejecuta explícitamente
+`ENABLE ROW LEVEL SECURITY`. No se agregaron políticas RLS improvisadas: el
+backend autenticado continúa siendo la frontera efectiva de aislamiento en
+esta fase.
+
 Comportamiento:
 
 - base vacía: crea únicamente estructura;
@@ -136,7 +143,8 @@ El seed oficial crea o asegura, en orden:
 
 El seed se ejecutó dos veces en una base limpia. El resultado fue un negocio,
 un settings, una identidad admin, una membresía admin y una caja principal, sin
-duplicados.
+duplicados. La identidad conservó `session_version = 1`: el seed compara el
+hash existente y solo incrementa la versión si realmente cambia la contraseña.
 
 El seed demo crea negocio, settings, cuatro identidades, cuatro membresías,
 módulos y datos operativos. Los perfiles `pos` y `cellab` permanecen
@@ -150,6 +158,7 @@ Un login válido firma:
 sub
 membershipId
 businessId
+sessionVersion
 role
 email
 name
@@ -173,14 +182,21 @@ petición. Valida la relación exacta entre:
 - identidad activa;
 - membresía activa;
 - negocio activo;
+- versión de sesión vigente;
 - rol actual válido.
 
 El rol efectivo siempre se toma de la membresía actual. Un cambio de rol,
 revocación de membresía o suspensión del negocio se aplica en la siguiente
 petición.
 
-Los JWT anteriores, sin `membershipId` o `businessId`, reciben `401` y requieren
-un nuevo login. No existe fallback al primer negocio.
+Los JWT anteriores, sin `membershipId`, `businessId` o `sessionVersion`,
+reciben `401` y requieren un nuevo login. No existe fallback al primer negocio.
+
+El reset de contraseña incrementa `users.session_version`; cualquier JWT
+emitido antes del cambio queda rechazado en la siguiente petición. Cambiar
+nombre o correo no invalida la sesión: el middleware y `/session` consultan
+PostgreSQL y devuelven los valores actuales, no los claims descriptivos
+obsoletos.
 
 `GET /api/auth/session` devuelve usuario, membresía y negocio actuales sin
 renovar el token.
@@ -198,8 +214,16 @@ membresías del negocio autenticado:
 - auto-desactivación y auto-degradación de admin bloqueadas;
 - siempre se conserva al menos un admin activo.
 
-El reset de contraseña sigue afectando a la identidad global. Esta compatibilidad
-debe revisarse antes de reutilizar una identidad en varios negocios reales.
+Las mutaciones de rol o estado bloquean primero la fila del negocio con
+`FOR UPDATE` y revalidan, dentro de la misma transacción, al actor, la membresía
+objetivo y el número de administradores activos. Todas las mutaciones actuales
+que pueden degradar o desactivar membresías pasan por ese orden de bloqueo.
+Así, dos administradores que intenten degradarse mutuamente no pueden confirmar
+ambas operaciones.
+
+El reset de contraseña sigue afectando a la identidad global y ahora invalida
+sus sesiones globalmente. Esta semántica debe definirse antes de reutilizar una
+identidad en varios negocios reales.
 
 Los eventos de auditoría conservan la tabla actual y agregan `businessId`,
 `membershipId` y `userId` en metadata cuando corresponde.
@@ -252,27 +276,27 @@ npm run smoke:tenant-foundation -w @cellab/api
 ```
 
 El smoke rechaza hosts remotos, Supabase, producción y bases cuyo nombre no
-contenga `tenant` o `test`. Validó 17 casos:
+contenga `tenant` o `test`. Validó 29 escenarios, agrupados en:
 
-1. login activo;
-2. usuario sin membresía;
-3. membresía inactiva;
-4. identidad inactiva;
-5. negocio inactivo;
-6. JWT sin negocio;
-7. JWT sin membresía;
-8. revocación posterior al login;
-9. suspensión posterior al login;
-10. rol actualizado en la siguiente petición;
-11. body sin autoridad sobre el negocio;
-12. varias membresías sin selección arbitraria;
-13. contrato de `/session`;
-14. configuración aislada;
-15. módulos aislados;
-16. listado de usuarios aislado;
-17. protección del último admin.
+- login, membresía, identidad y negocio activos/inactivos;
+- JWT sin negocio, membresía o versión de sesión;
+- revalidación posterior de membresía, negocio, rol y credenciales;
+- rechazo explícito de identidades con varias membresías;
+- contrato de `/session`;
+- aislamiento de configuración, módulos y administración de usuarios;
+- intentos A→B y B→A usando IDs conocidos, URL, body, query y headers;
+- verificación directa de que rol, estado y contraseña ajenos no cambiaron;
+- reset de contraseña con invalidación del JWT y de la contraseña anterior;
+- cambio de nombre/correo con sesión válida y datos actuales;
+- auto-protecciones administrativas;
+- dos degradaciones administrativas cruzadas y concurrentes.
 
-Los contratos de esquema verifican además las nuevas entidades y enum.
+La regresión concurrente exige que como máximo una mutación tenga éxito,
+consulta directamente PostgreSQL para demostrar que queda al menos un admin
+activo y confirma que el negocio sigue siendo administrable.
+
+Los contratos de esquema verifican además las nuevas entidades, el enum,
+`session_version` y el estado RLS declarado por Drizzle.
 
 ## 16. Validación local de migraciones
 
@@ -283,7 +307,9 @@ Se usó únicamente PostgreSQL Docker en `127.0.0.1:55432`.
 - `0000`–`0014`: aprobadas;
 - seed ejecutado dos veces: aprobado;
 - UUID CelLab, slug, admin, membresía y `MAIN-01`: preservados;
-- smoke tenant: 17/17 aprobado.
+- `session_version = 1` después del doble seed: aprobado;
+- RLS activo en `businesses` y `business_memberships`: aprobado;
+- smoke tenant: 29/29 aprobado.
 
 ### Base existente simulada
 
@@ -292,7 +318,9 @@ Se usó únicamente PostgreSQL Docker en `127.0.0.1:55432`.
 - `0014`: aprobada;
 - mismo UUID y cinco membresías: aprobados;
 - roles, estados y hash de contraseña: preservados;
+- `session_version` agregado con valor inicial `1`;
 - caja existente: preservada;
+- RLS activo en ambas tablas tenant;
 - login y `/session` de los cinco roles: aprobados.
 
 ### Base ambigua simulada
@@ -335,8 +363,9 @@ Esta fase no completa el aislamiento de datos operativos:
 - reset de contraseña es global;
 - no existe selector de negocio;
 - no existen sucursales, planes ni suscripciones;
-- el RLS habilitado en las tablas nuevas no sustituye el control de aplicación
-  y todavía no representa una política multi-tenant completa.
+- RLS está declarado y habilitado en las tablas nuevas, pero sin políticas
+  tenant completas ni un rol de conexión que las haga la frontera operativa;
+  no sustituye el control de aplicación.
 
 Por estas razones no debe registrarse un segundo negocio real en la misma base.
 
@@ -352,7 +381,8 @@ Antes de alojar un segundo negocio real se requiere, como mínimo:
 4. resolver selección explícita de membresía;
 5. definir políticas RLS y rol de conexión coherentes con el despliegue;
 6. probar aislamiento negativo entre dos negocios en todos los módulos;
-7. definir administración de identidad compartida y reset de contraseña;
+7. definir administración de identidad compartida y si el reset/invalidez de
+   sesiones debe seguir siendo global;
 8. probar backup, restore y rollback con datos representativos.
 
 ## 20. Rollback y dictamen
