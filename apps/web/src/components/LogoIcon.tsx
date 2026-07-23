@@ -4,7 +4,7 @@ interface LogoIconProps {
   inverted?: boolean;
 }
 
-/** Monograma CelLab: un teléfono abierto convertido en una C y una pista en L. */
+/** Monograma CelLab: un telÃ©fono abierto convertido en una C y una pista en L. */
 export function LogoIcon({ size = 38, className = '', inverted = false }: LogoIconProps) {
   const surface = inverted ? '#F1F4F1' : '#17201D';
   const trace = inverted ? '#17201D' : '#F1F4F1';

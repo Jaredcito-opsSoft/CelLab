@@ -15,7 +15,13 @@ export const authRouter = Router();
 
 const secret = new TextEncoder().encode(env.JWT_SECRET);
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false });
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => env.NODE_ENV !== 'production' && env.SMOKE_TEST_MODE,
+});
 
 authRouter.post('/login', limiter, asyncHandler(async (request, response) => {
   const input = loginSchema.parse(request.body);

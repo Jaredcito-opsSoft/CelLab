@@ -8,12 +8,22 @@
                     "build":  "tsc -p tsconfig.json",
                     "start":  "node dist/main.js",
                     "typecheck":  "tsc -p tsconfig.json --noEmit",
+                    "test:contracts":  "tsx --test src/tests/contracts.test.ts src/tests/managerial-reports.test.ts",
                     "db:generate":  "drizzle-kit generate",
                     "db:migrate":  "drizzle-kit migrate",
                     "db:seed":  "tsx src/db/seed.ts",
+                    "db:seed:demo":  "tsx src/scripts/seed-demo.ts",
                     "smoke:permissions":  "tsx src/scripts/smoke-permissions.ts",
                     "smoke:modules":  "tsx src/scripts/smoke-modules.ts",
-                    "smoke:purchases":  "tsx src/scripts/smoke-purchases.ts"
+                    "smoke:purchases":  "tsx src/scripts/smoke-purchases.ts",
+                    "smoke:pos-complete":  "tsx src/scripts/smoke-pos-complete.ts",
+                    "smoke:multi-register":  "tsx src/scripts/smoke-multi-register.ts",
+                    "smoke:cash-concurrency":  "tsx src/scripts/smoke-cash-concurrency.ts",
+                    "smoke:release":  "tsx src/scripts/smoke-release.ts",
+                    "smoke:warranty":  "tsx src/scripts/smoke-warranty.ts",
+                    "smoke:reports":  "tsx src/scripts/smoke-reports.ts"
+                    ,"audit:release-db": "tsx src/scripts/audit-release-database.ts",
+                    "load:release:readonly": "tsx src/scripts/load-release-readonly.ts"
                 },
     "dependencies":  {
                          "bcryptjs":  "^3.0.3",

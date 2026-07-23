@@ -2,9 +2,10 @@ import { and, count, desc, eq, gte, ilike, isNull, lte, or, sql } from 'drizzle-
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { businessSettings, clients, folioCounters, inventoryMovements, products, repairEvents, repairItems, repairPayments, repairs, sales, users } from '../../db/schema.js';
+import { businessSettings, categories, clients, folioCounters, inventoryMovements, productCompatibilities, products, repairEvents, repairItems, repairPayments, repairs, sales, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { recordAuditLog } from '../../lib/audit.js';
+import { canAccessCosts, withoutSensitiveCosts } from '../../lib/cost-privacy.js';
 import { AppError } from '../../lib/errors.js';
 import { roleGroups } from '../../lib/roles.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.js';
@@ -24,8 +25,13 @@ const query = z.object({
   status: z.enum(states).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
+const productQuery = z.object({
+  search: z.string().trim().max(100).default(''),
+  categoryId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
 const clientInput = z.object({ name: z.string().trim().min(2).max(140), phone: z.string().trim().min(8).max(20), email: z.string().email().nullable().optional(), notes: z.string().max(2000).nullable().optional() });
-const productInput = z.object({ sku: z.string().trim().min(2).max(50), name: z.string().trim().min(2).max(160), categoryId: z.string().uuid().nullable().optional(), costCents: z.number().int().min(0).default(0), priceCents: z.number().int().min(0), stock: z.number().int().min(0).default(0), minimumStock: z.number().int().min(0).default(0), active: z.boolean().default(true) });
+const productInput = z.object({ sku: z.string().trim().min(2).max(50), barcode: z.string().trim().min(3).max(80).nullable().optional(), name: z.string().trim().min(2).max(160), categoryId: z.string().uuid().nullable().optional(), costCents: z.number().int().min(0).default(0), priceCents: z.number().int().min(0), stock: z.number().int().min(0).default(0), minimumStock: z.number().int().min(0).default(0), active: z.boolean().default(true) });
 const repairInput = z.object({
   clientId: z.string().uuid(), assignedToId: z.string().uuid().nullable().optional(), brand: z.string().trim().min(1).max(80), model: z.string().trim().min(1).max(120),
   deviceColor: z.string().trim().max(80).nullable().optional(), serialNumber: z.string().max(120).nullable().optional(), accessoriesReceived: z.string().max(2000).nullable().optional(),
@@ -43,7 +49,27 @@ const voidInput = z.object({ reason: z.string().trim().min(3).max(1000).default(
 
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 const quoteTotal = (repair: typeof repairs.$inferSelect) => repair.finalCents ?? repair.estimatedCents ?? 0;
-const canAccessCosts = (role: string) => role === 'admin' || role === 'manager';
+type RepairStatus = typeof states[number];
+const repairTransitions: Record<RepairStatus, readonly RepairStatus[]> = {
+  received: ['diagnosis', 'cancelled'],
+  diagnosis: ['awaiting_authorization', 'in_repair', 'cancelled'],
+  awaiting_authorization: ['diagnosis', 'in_repair', 'cancelled'],
+  in_repair: ['testing', 'ready', 'cancelled'],
+  testing: ['in_repair', 'ready', 'cancelled'],
+  ready: ['testing', 'delivered', 'cancelled'],
+  delivered: [],
+  cancelled: [],
+};
+
+function assertRepairTransition(from: RepairStatus, to: RepairStatus, role: string) {
+  if (from === to) return;
+  if (to === 'cancelled' && role !== 'admin' && role !== 'manager') {
+    throw new AppError(403, 'Solo administración o gerencia pueden cancelar una reparación.', 'FORBIDDEN');
+  }
+  if (!repairTransitions[from].includes(to)) {
+    throw new AppError(409, `No se permite cambiar una reparación de ${from} a ${to}.`, 'INVALID_REPAIR_TRANSITION');
+  }
+}
 async function getBusiness(tx: typeof db | any = db) {
   const [business] = await tx.select().from(businessSettings).limit(1);
   if (!business) throw new AppError(409, 'Configura el negocio antes de continuar.');
@@ -51,36 +77,27 @@ async function getBusiness(tx: typeof db | any = db) {
 }
 
 operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
-  const business = await getBusiness();
+  const [business, moduleState] = await Promise.all([getBusiness(), readEnabledModules(['repairs'])]);
   const { from: startOfToday, to: endOfToday } = rangeBounds('today', business.timezone);
-  const moduleState = await readEnabledModules(['repairs']);
+  const startOfTodayIso = startOfToday.toISOString();
+  const endOfTodayIso = endOfToday.toISOString();
   const repairsEnabled = moduleState.get('repairs') ?? false;
 
   const [
-    [customers],
-    [productTotal],
-    [openRepairs],
-    [readyRepairs],
-    [lowStock],
-    [todaySales],
+    [metrics],
     recentSalesRows,
     recentRepairsRows,
     recentInventoryRows,
   ] = await Promise.all([
-    db.select({ value: count() }).from(clients).where(isNull(clients.deletedAt)),
-    db.select({ value: count() }).from(products).where(isNull(products.deletedAt)),
-    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), sql`${repairs.status} not in ('delivered','cancelled')`)) : Promise.resolve([{ value: 0 }]),
-    repairsEnabled ? db.select({ value: count() }).from(repairs).where(and(isNull(repairs.deletedAt), eq(repairs.status, 'ready'))) : Promise.resolve([{ value: 0 }]),
-    db.select({ value: count() }).from(products).where(and(isNull(products.deletedAt), sql`${products.stock} <= ${products.minimumStock}`)),
     db.select({
-      count: count(),
-      totalCents: sql<number>`coalesce(sum(${sales.totalCents}), 0)::int`,
-    }).from(sales).where(and(
-      isNull(sales.deletedAt),
-      eq(sales.status, 'completed'),
-      gte(sales.createdAt, startOfToday),
-      lte(sales.createdAt, endOfToday),
-    )),
+      customers: sql<number>`(select count(*)::int from ${clients} where ${clients.deletedAt} is null)`,
+      products: sql<number>`(select count(*)::int from ${products} where ${products.deletedAt} is null)`,
+      openRepairs: repairsEnabled ? sql<number>`(select count(*)::int from ${repairs} where ${repairs.deletedAt} is null and ${repairs.status} not in ('delivered','cancelled'))` : sql<number>`0`,
+      readyRepairs: repairsEnabled ? sql<number>`(select count(*)::int from ${repairs} where ${repairs.deletedAt} is null and ${repairs.status} = 'ready')` : sql<number>`0`,
+      lowStock: sql<number>`(select count(*)::int from ${products} where ${products.deletedAt} is null and ${products.stock} <= ${products.minimumStock})`,
+      todaySalesCount: sql<number>`(select count(*)::int from ${sales} where ${sales.deletedAt} is null and ${sales.status} = 'completed' and ${sales.createdAt} >= ${startOfTodayIso}::timestamptz and ${sales.createdAt} <= ${endOfTodayIso}::timestamptz)`,
+      todaySalesTotalCents: sql<number>`(select coalesce(sum(${sales.totalCents}), 0)::int from ${sales} where ${sales.deletedAt} is null and ${sales.status} = 'completed' and ${sales.createdAt} >= ${startOfTodayIso}::timestamptz and ${sales.createdAt} <= ${endOfTodayIso}::timestamptz)`,
+    }).from(sql`(select 1) as dashboard_seed`),
     db.select({
       id: sales.id,
       folio: sales.folio,
@@ -111,13 +128,13 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
   ]);
 
   res.json({
-    todaySalesCount: todaySales?.count ?? 0,
-    todaySalesTotalCents: todaySales?.totalCents ?? 0,
-    openRepairsCount: openRepairs?.value ?? 0,
-    readyRepairsCount: readyRepairs?.value ?? 0,
-    lowStockCount: lowStock?.value ?? 0,
-    productsCount: productTotal?.value ?? 0,
-    customersCount: customers?.value ?? 0,
+    todaySalesCount: metrics?.todaySalesCount ?? 0,
+    todaySalesTotalCents: metrics?.todaySalesTotalCents ?? 0,
+    openRepairsCount: metrics?.openRepairs ?? 0,
+    readyRepairsCount: metrics?.readyRepairs ?? 0,
+    lowStockCount: metrics?.lowStock ?? 0,
+    productsCount: metrics?.products ?? 0,
+    customersCount: metrics?.customers ?? 0,
     recentSales: recentSalesRows,
     recentRepairs: recentRepairsRows,
     recentInventoryMovements: recentInventoryRows,
@@ -189,13 +206,38 @@ operationsRouter.delete('/clients/:id', requireRole(...roleGroups.managers), asy
 }));
 
 operationsRouter.get('/products', asyncHandler(async (req,res) => {
-  const {search,limit}=query.parse(req.query);
-  res.json({items:await db.select().from(products).where(and(isNull(products.deletedAt),search?or(ilike(products.name,`%${search}%`),ilike(products.sku,`%${search}%`)):undefined)).orderBy(desc(products.createdAt)).limit(limit)});
+  const {search,categoryId,limit}=productQuery.parse(req.query);
+  const pattern=`%${search}%`;
+  const rows=await db.select({
+    id:products.id,sku:products.sku,barcode:products.barcode,name:products.name,categoryId:products.categoryId,categoryName:categories.name,
+    costCents:products.costCents,priceCents:products.priceCents,stock:products.stock,minimumStock:products.minimumStock,active:products.active,
+    deletedAt:products.deletedAt,createdAt:products.createdAt,updatedAt:products.updatedAt,
+    compatibilities: sql<Array<{id:string;businessId:string;productId:string;brand:string;model:string;createdAt:string;updatedAt:string}>>`
+      coalesce((
+        select json_agg(json_build_object(
+          'id', pc.id, 'businessId', pc.business_id, 'productId', pc.product_id,
+          'brand', pc.brand, 'model', pc.model, 'createdAt', pc.created_at, 'updatedAt', pc.updated_at
+        ) order by pc.brand, pc.model)
+        from product_compatibilities pc
+        where pc.product_id = ${products.id}
+          and pc.business_id = (select id from business_settings limit 1)
+      ), '[]'::json)`,
+  }).from(products).leftJoin(categories,eq(products.categoryId,categories.id)).where(and(
+    isNull(products.deletedAt),
+    categoryId?eq(products.categoryId,categoryId):undefined,
+    search?or(
+      ilike(products.name,pattern),ilike(products.sku,pattern),ilike(products.barcode,pattern),
+      sql`exists (select 1 from ${productCompatibilities} pc where pc.product_id = ${products.id} and pc.business_id = (select id from ${businessSettings} limit 1) and (pc.brand ilike ${pattern} or pc.model ilike ${pattern}))`,
+    ):undefined,
+  )).orderBy(desc(products.createdAt)).limit(limit);
+  res.json({items:canAccessCosts(req.auth!.role)?rows:rows.map(withoutSensitiveCosts)});
 }));
 operationsRouter.post('/products', requireRole(...roleGroups.inventory), asyncHandler(async (req,res) => {
   const input=productInput.parse(req.body);
   const item=await db.transaction(async tx=>{
     const business=await getBusiness(tx);
+    if(input.categoryId){const [category]=await tx.select({id:categories.id}).from(categories).where(and(eq(categories.id,input.categoryId),eq(categories.active,true))).limit(1);if(!category)throw new AppError(409,'La categoría seleccionada no está disponible.');}
+    if(input.barcode){const [duplicate]=await tx.select({id:products.id}).from(products).where(and(eq(products.barcode,input.barcode),isNull(products.deletedAt))).limit(1);if(duplicate)throw new AppError(409,'Ese código de barras ya pertenece a otro producto.');}
     const [created]=await tx.insert(products).values(input).returning();
     if(!created)throw new AppError(500,'No fue posible registrar el producto.');
     if(created.stock>0)await tx.insert(inventoryMovements).values({businessId:business.id,productId:created.id,userId:req.auth!.userId,type:'stock_entry',quantity:created.stock,previousStock:0,newStock:created.stock,referenceType:'product',referenceId:created.id,notes:'Existencia inicial'});
@@ -210,6 +252,8 @@ operationsRouter.patch('/products/:id', requireRole(...roleGroups.inventory), as
     const business=await getBusiness(tx);
     const [current]=await tx.select().from(products).where(and(eq(products.id,productId),isNull(products.deletedAt))).limit(1);
     if(!current)throw new AppError(404,'Producto no encontrado.');
+    if(input.categoryId){const [category]=await tx.select({id:categories.id}).from(categories).where(and(eq(categories.id,input.categoryId),eq(categories.active,true))).limit(1);if(!category)throw new AppError(409,'La categoría seleccionada no está disponible.');}
+    if(input.barcode){const [duplicate]=await tx.select({id:products.id}).from(products).where(and(eq(products.barcode,input.barcode),isNull(products.deletedAt),sql`${products.id} <> ${productId}`)).limit(1);if(duplicate)throw new AppError(409,'Ese código de barras ya pertenece a otro producto.');}
     const [updated]=await tx.update(products).set({...input,updatedAt:new Date()}).where(eq(products.id,productId)).returning();
     if(input.stock!==undefined&&input.stock!==current.stock)await tx.insert(inventoryMovements).values({businessId:business.id,productId,userId:req.auth!.userId,type:'manual_adjustment',quantity:Math.abs(input.stock-current.stock),previousStock:current.stock,newStock:input.stock,referenceType:'manual',referenceId:productId,notes:'Ajuste desde inventario'});
     return updated;
@@ -282,8 +326,9 @@ operationsRouter.get('/repairs/:id', asyncHandler(async (req,res) => {
   const totalCents=quoteTotal(row.repair);
   const balanceCents=Math.max(0,totalCents-paidCents);
   const paymentStatus=totalCents>0&&balanceCents===0?'paid':paidCents>0?'partial':'pending';
-  const safeItems=canViewCosts?items:items.map(item=>({...item,costCentsSnapshot:0,costTotalCents:0,grossProfitCents:0,grossMarginBps:0}));
-  res.json({item:{...row.repair,client:row.client,assignedToName:row.assignedToName,events,payments,items:safeItems,business,totalCents,paidCents,balanceCents,paymentStatus,itemsRevenueCents,itemsCostCents:canViewCosts?itemsCostCents:0,itemsGrossProfitCents:canViewCosts?itemsGrossProfitCents:0,itemsGrossMarginBps:canViewCosts?itemsGrossMarginBps:0}});
+  const safeItems=canViewCosts?items:items.map(withoutSensitiveCosts);
+  const economics=canViewCosts?{itemsCostCents,itemsGrossProfitCents,itemsGrossMarginBps}:{};
+  res.json({item:{...row.repair,client:row.client,assignedToName:row.assignedToName,events,payments,items:safeItems,business,totalCents,paidCents,balanceCents,paymentStatus,itemsRevenueCents,...economics}});
 }));
 
 operationsRouter.patch('/repairs/:id', requireRole(...roleGroups.workshop), asyncHandler(async (req,res) => {
@@ -291,6 +336,7 @@ operationsRouter.patch('/repairs/:id', requireRole(...roleGroups.workshop), asyn
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
     if(!current)throw new AppError(404,'Reparación no encontrada.');
+    if(input.status)assertRepairTransition(current.status,input.status,req.auth!.role);
     const now=new Date();
     const nextWarrantyDays=input.warrantyDays??current.warrantyDays;
     const nextStatus=input.status??current.status;
@@ -316,6 +362,7 @@ operationsRouter.patch('/repairs/:id/status', requireRole(...roleGroups.workshop
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
     if(!current)throw new AppError(404,'Reparación no encontrada.');
+    assertRepairTransition(current.status,input.status,req.auth!.role);
     const now=new Date();
     const warrantyDays=input.warrantyDays??current.warrantyDays;
     const [updated]=await tx.update(repairs).set({status:input.status,diagnosis:input.diagnosis??current.diagnosis,finalCents:input.finalCents??current.finalCents,warrantyDays,deliveredAt:input.status==='delivered'?now:current.deliveredAt,warrantyUntil:input.status==='delivered'&&warrantyDays>0?addDays(now,warrantyDays):current.warrantyUntil,updatedAt:now}).where(eq(repairs.id,repairId)).returning();
@@ -332,6 +379,7 @@ operationsRouter.post('/repairs/:id/events', requireRole(...roleGroups.workshop)
   const item=await db.transaction(async tx=>{
     const [current]=await tx.select().from(repairs).where(and(eq(repairs.id,repairId),isNull(repairs.deletedAt))).limit(1);
     if(!current)throw new AppError(404,'Reparación no encontrada.');
+    if(input.status)assertRepairTransition(current.status,input.status,req.auth!.role);
     if(input.status&&input.status!==current.status)await tx.update(repairs).set({status:input.status,updatedAt:new Date()}).where(eq(repairs.id,repairId));
     const [event]=await tx.insert(repairEvents).values({repairId,fromStatus:input.status&&input.status!==current.status?current.status:null,toStatus:input.status??current.status,note:input.note,createdById:req.auth!.userId}).returning();
     return event;
@@ -392,7 +440,7 @@ operationsRouter.post('/repairs/:id/items', requireRole(...roleGroups.workshop),
   });
   if(!item)throw new AppError(500,'No fue posible registrar el concepto de reparación.');
   await recordAuditLog({actor:req.auth!,action:'repairs.item',entityType:'repair',entityId:repairId,summary:`Concepto agregado: ${item.nameSnapshot}`,metadata:{quantity:item.quantity,totalCents:item.totalCents,affectsInventory:item.affectsInventory,productId:item.productId}});
-  res.status(201).json({item});
+  res.status(201).json({item:canSetCosts?item:withoutSensitiveCosts(item)});
 }));
 
 operationsRouter.use('/repair-items', requireModule('repairs'));
@@ -427,6 +475,7 @@ operationsRouter.post('/repair-payments/:id/void', requireRole(...roleGroups.adm
     const [voided]=await tx.update(repairPayments).set({status:'voided',voidedAt:new Date(),voidedByUserId:req.auth!.userId}).where(eq(repairPayments.id,paymentId)).returning();
     let cashWarning: string | null = null;
     if(voided){
+      if(row.payment.method==='mixed')throw new AppError(409,'Un pago de reparación no puede usar método mixto.');
       const cashResult=await recordCashMovementIfOpen(tx,{businessId:business.id,type:'repair_payment_void',method:row.payment.method,amountCents:row.payment.amountCents,direction:'out',referenceType:'repair',referenceId:row.repair.id,referenceFolio:row.repair.folio,reason:'Anulación de pago de reparación',note:row.payment.note,userId:req.auth!.userId});
       cashWarning=cashResult.cashWarning;
     }

@@ -12,7 +12,7 @@ import { requireAuth, requireRole } from '../../middlewares/auth.js';
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth);
 
-const movementTypes = ['sale','sale_cancel','stock_entry','manual_adjustment','service_usage','service_usage_void','purchase_receipt'] as const;
+const movementTypes = ['sale','sale_cancel','sale_return','stock_entry','manual_adjustment','service_usage','service_usage_void','purchase_receipt','layaway_reserve','layaway_release'] as const;
 const querySchema = z.object({ productId: z.string().uuid().optional(), type: z.enum(movementTypes).optional(), limit: z.coerce.number().int().min(1).max(200).default(100) });
 const productIdInput = z.object({ productId: z.string().uuid(), note: z.string().trim().max(1000).nullable().optional() });
 const stockEntryInput = productIdInput.extend({ quantity: z.number().int().min(1).max(99999), unitCostCents: z.number().int().min(0).optional() });

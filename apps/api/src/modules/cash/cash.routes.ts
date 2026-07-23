@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { cashSessions, users } from '../../db/schema.js';
+import { cashRegisters, cashSessions, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
@@ -15,10 +15,14 @@ cashRouter.use(requireAuth);
 
 const idSchema = z.string().uuid();
 const moneyInput = z.number().int().min(0).max(99_999_999);
-const openInput = z.object({ openingCashCents: moneyInput, notes: z.string().trim().max(1000).nullable().optional() });
-const closeInput = z.object({ countedCashCents: moneyInput, notes: z.string().trim().max(1000).nullable().optional() });
-const manualInput = z.object({ type: z.enum(['manual_in', 'manual_out']), method: z.enum(['cash', 'transfer', 'card', 'other']), amountCents: z.number().int().min(1).max(99_999_999), reason: z.string().trim().min(3).max(300), note: z.string().trim().max(1000).nullable().optional() });
-const rangeQuery = z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), limit: z.coerce.number().int().min(1).max(100).default(50) });
+const registerIdInput = z.string().uuid().optional();
+const registerQuery = z.object({ cashRegisterId: registerIdInput });
+const openInput = z.object({ cashRegisterId: registerIdInput, openingCashCents: moneyInput, notes: z.string().trim().max(1000).nullable().optional() });
+const closeInput = z.object({ cashRegisterId: registerIdInput, countedCashCents: moneyInput, notes: z.string().trim().max(1000).nullable().optional() });
+const manualInput = z.object({ cashRegisterId: registerIdInput, type: z.enum(['manual_in', 'manual_out']), method: z.enum(['cash', 'transfer', 'card', 'other']), amountCents: z.number().int().min(1).max(99_999_999), reason: z.string().trim().min(3).max(300), note: z.string().trim().max(1000).nullable().optional() });
+const registerCreateInput = z.object({ code: z.string().trim().min(2).max(30).regex(/^[A-Za-z0-9_-]+$/).transform((value) => value.toUpperCase()), name: z.string().trim().min(2).max(100) });
+const registerUpdateInput = z.object({ name: z.string().trim().min(2).max(100).optional(), active: z.boolean().optional() }).refine((value) => Object.keys(value).length > 0);
+const rangeQuery = z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), cashRegisterId: registerIdInput, limit: z.coerce.number().int().min(1).max(100).default(50) });
 const summaryQuery = z.object({ range: z.enum(['today', 'week', 'month']).default('today') });
 
 function parseDateRange(query: unknown) {
@@ -29,9 +33,51 @@ function parseDateRange(query: unknown) {
   return { ...parsed, from, to };
 }
 
-cashRouter.get('/current', asyncHandler(async (_req, res) => {
+cashRouter.get('/registers', asyncHandler(async (_req, res) => {
   const business = await getBusiness();
-  const session = await getOpenCashSession(db, business.id);
+  const [registers, openSessions] = await Promise.all([
+    db.select().from(cashRegisters).where(eq(cashRegisters.businessId, business.id)).orderBy(desc(cashRegisters.isDefault), cashRegisters.name),
+    db.select({ id: cashSessions.id, cashRegisterId: cashSessions.cashRegisterId, openedAt: cashSessions.openedAt, openedByUserId: cashSessions.openedByUserId }).from(cashSessions).where(and(eq(cashSessions.businessId, business.id), eq(cashSessions.status, 'open'))),
+  ]);
+  const openByRegister = new Map(openSessions.map((session) => [session.cashRegisterId, session]));
+  res.json({ items: registers.map((register) => ({ ...register, openSession: openByRegister.get(register.id) ?? null })) });
+}));
+
+cashRouter.post('/registers', requireRole(...roleGroups.managers), asyncHandler(async (req, res) => {
+  const input = registerCreateInput.parse(req.body);
+  const item = await db.transaction(async (tx) => {
+    const business = await getBusiness(tx);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cash-register-catalog:${business.id}`}))`);
+    const [total] = await tx.select({ value: count() }).from(cashRegisters).where(and(eq(cashRegisters.businessId, business.id), eq(cashRegisters.active, true)));
+    if ((total?.value ?? 0) >= 10) throw new AppError(409, 'LocalPOS admite hasta 10 cajas físicas en esta fase.');
+    const [created] = await tx.insert(cashRegisters).values({ businessId: business.id, ...input }).returning();
+    return created;
+  });
+  if (!item) throw new AppError(500, 'No fue posible crear la caja física.');
+  await recordAuditLog({ actor: req.auth!, action: 'cash_register.create', entityType: 'cash_register', entityId: item.id, summary: `Caja creada: ${item.name}`, metadata: { code: item.code } });
+  res.status(201).json({ item });
+}));
+
+cashRouter.patch('/registers/:id', requireRole(...roleGroups.managers), asyncHandler(async (req, res) => {
+  const registerId = idSchema.parse(req.params.id);
+  const input = registerUpdateInput.parse(req.body);
+  const business = await getBusiness();
+  const [current] = await db.select().from(cashRegisters).where(and(eq(cashRegisters.id, registerId), eq(cashRegisters.businessId, business.id))).limit(1);
+  if (!current) throw new AppError(404, 'Caja física no encontrada.');
+  if (input.active === false) {
+    if (current.isDefault) throw new AppError(409, 'La caja principal no se puede desactivar.');
+    const session = await getOpenCashSession(db, business.id, current.id);
+    if (session) throw new AppError(409, 'Cierra el turno antes de desactivar esta caja.');
+  }
+  const [item] = await db.update(cashRegisters).set({ ...input, updatedAt: new Date() }).where(eq(cashRegisters.id, current.id)).returning();
+  await recordAuditLog({ actor: req.auth!, action: 'cash_register.update', entityType: 'cash_register', entityId: current.id, summary: `Caja actualizada: ${current.name}`, metadata: input });
+  res.json({ item });
+}));
+
+cashRouter.get('/current', asyncHandler(async (req, res) => {
+  const business = await getBusiness();
+  const { cashRegisterId } = registerQuery.parse(req.query);
+  const session = await getOpenCashSession(db, business.id, cashRegisterId);
   if (!session) { res.json({ item: null }); return; }
   res.json({ item: await loadCashSessionDetail(session.id) });
 }));
@@ -62,7 +108,7 @@ cashRouter.get('/summary', asyncHandler(async (req, res) => {
 }));
 
 cashRouter.get('/sessions', asyncHandler(async (req, res) => {
-  const { from, to, limit } = parseDateRange(req.query);
+  const { from, to, limit, cashRegisterId } = parseDateRange(req.query);
   const business = await getBusiness();
   const rows = await db.select({
     id: cashSessions.id,
@@ -75,7 +121,9 @@ cashRouter.get('/sessions', asyncHandler(async (req, res) => {
     differenceCents: cashSessions.differenceCents,
     notes: cashSessions.notes,
     openedByName: users.name,
-  }).from(cashSessions).innerJoin(users, eq(cashSessions.openedByUserId, users.id)).where(and(eq(cashSessions.businessId, business.id), gte(cashSessions.openedAt, from), lte(cashSessions.openedAt, to))).orderBy(desc(cashSessions.openedAt)).limit(limit);
+    registerName: cashRegisters.name,
+    registerCode: cashRegisters.code,
+  }).from(cashSessions).innerJoin(users, eq(cashSessions.openedByUserId, users.id)).innerJoin(cashRegisters, eq(cashSessions.cashRegisterId, cashRegisters.id)).where(and(eq(cashSessions.businessId, business.id), cashRegisterId ? eq(cashSessions.cashRegisterId, cashRegisterId) : undefined, gte(cashSessions.openedAt, from), lte(cashSessions.openedAt, to))).orderBy(desc(cashSessions.openedAt)).limit(limit);
   res.json({ items: rows });
 }));
 

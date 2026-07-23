@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { env } from '../config/env.js';
 import { db, queryClient } from './client.js';
-import { businessSettings, users } from './schema.js';
+import { businessSettings, cashRegisters, users } from './schema.js';
 
 const CEL_LAB_BUSINESS_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -19,6 +19,32 @@ await db.insert(businessSettings).values({
   currency: 'MXN',
   primaryColor: '#0A84FF',
 }).onConflictDoNothing({ target: businessSettings.id });
+
+const [defaultRegister] = await db.select({ id: cashRegisters.id })
+  .from(cashRegisters)
+  .where(and(eq(cashRegisters.businessId, CEL_LAB_BUSINESS_ID), eq(cashRegisters.isDefault, true)))
+  .limit(1);
+
+if (!defaultRegister) {
+  const [mainRegister] = await db.select({ id: cashRegisters.id })
+    .from(cashRegisters)
+    .where(and(eq(cashRegisters.businessId, CEL_LAB_BUSINESS_ID), eq(cashRegisters.code, 'MAIN-01')))
+    .limit(1);
+
+  if (mainRegister) {
+    await db.update(cashRegisters)
+      .set({ active: true, isDefault: true, updatedAt: new Date() })
+      .where(eq(cashRegisters.id, mainRegister.id));
+  } else {
+    await db.insert(cashRegisters).values({
+      businessId: CEL_LAB_BUSINESS_ID,
+      code: 'MAIN-01',
+      name: 'Caja principal',
+      active: true,
+      isDefault: true,
+    });
+  }
+}
 
 if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
   console.log('Configuración de CelLab creada. Define ADMIN_EMAIL y ADMIN_PASSWORD para crear el acceso inicial.');

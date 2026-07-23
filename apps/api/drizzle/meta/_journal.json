@@ -64,6 +64,41 @@
       "when": 1783365818028,
       "tag": "0008_hard_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783910625956,
+      "tag": "0009_overjoyed_moonstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783910672511,
+      "tag": "0010_swift_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783910809683,
+      "tag": "0011_organic_daredevil",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783915530716,
+      "tag": "0012_late_songbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783920000000,
+      "tag": "0013_secure_supabase_data_api",
+      "breakpoints": true
     }
   ]
 }
