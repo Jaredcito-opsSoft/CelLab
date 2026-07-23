@@ -86,7 +86,7 @@ export function UserAdminView({ token, role }: { token: string; role: UserRole }
       await apiRequest(editing ? `/api/operations/users/${editing.id}` : '/api/operations/users', { method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload) }, token);
       event.currentTarget.reset();
       setEditing(null);
-      setMessage(editing ? 'Usuario actualizado.' : 'Usuario creado.');
+      setMessage(editing ? 'Acceso al negocio actualizado.' : 'Usuario y acceso creados.');
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No fue posible guardar el usuario.');
@@ -120,7 +120,7 @@ export function UserAdminView({ token, role }: { token: string; role: UserRole }
     setMessage('');
     try {
       await apiRequest(`/api/operations/users/${user.id}`, { method: 'PATCH', body: JSON.stringify({ active: !user.active }) }, token);
-      setMessage(!user.active ? 'Usuario activado.' : 'Usuario desactivado.');
+      setMessage(!user.active ? 'Acceso al negocio activado.' : 'Acceso al negocio desactivado.');
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No fue posible cambiar el estado del usuario.');
@@ -145,7 +145,7 @@ export function UserAdminView({ token, role }: { token: string; role: UserRole }
         <div>
           <p className="panel-eyebrow">Usuarios y auditoría</p>
           <h3>Accesos del equipo</h3>
-          <p>{activeCount} activos de {users.length} usuarios registrados.</p>
+          <p>{activeCount} accesos activos de {users.length} membresías del negocio.</p>
         </div>
         <form className="user-search" onSubmit={(event) => { event.preventDefault(); void load(); }}>
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar usuario o correo" />
@@ -162,7 +162,7 @@ export function UserAdminView({ token, role }: { token: string; role: UserRole }
           <label>Correo<input name="email" type="email" defaultValue={editing?.email ?? ''} required /></label>
           {!editing && <label>Contraseña inicial<input name="password" type="password" minLength={8} required /></label>}
           <label>Rol<select name="role" defaultValue={editing?.role ?? 'staff'}>{roles.map((value) => <option key={value} value={value}>{roleLabels[value]}</option>)}</select></label>
-          <label className="check-line user-active-toggle"><input name="active" type="checkbox" defaultChecked={editing?.active ?? true} /><span aria-hidden="true" /> Usuario activo</label>
+          <label className="check-line user-active-toggle"><input name="active" type="checkbox" defaultChecked={editing?.active ?? true} /><span aria-hidden="true" /> Acceso al negocio activo</label>
           <div className="form-actions">
             {editing && <button type="button" onClick={() => setEditing(null)}>Cancelar</button>}
             <button className="panel-primary" disabled={busy}>{editing ? 'Guardar cambios' : 'Crear usuario'}</button>
@@ -189,7 +189,7 @@ export function UserAdminView({ token, role }: { token: string; role: UserRole }
 
       {resetting && (
         <form className="reset-password-panel" onSubmit={resetPassword}>
-          <span>Reset de contraseña para <b>{resetting.email}</b></span>
+          <span>Reset de contraseña global para <b>{resetting.email}</b></span>
           <input name="password" type="password" minLength={8} placeholder="Nueva contraseña" required />
           <button className="panel-primary" disabled={busy}>Actualizar</button>
           <button type="button" onClick={() => setResetting(null)}>Cancelar</button>

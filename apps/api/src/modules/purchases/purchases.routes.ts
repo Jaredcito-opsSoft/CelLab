@@ -126,8 +126,8 @@ purchasesRouter.post('/', requireRole(...roleGroups.managers), asyncHandler(asyn
     const [supplier] = await tx.select().from(suppliers).where(and(eq(suppliers.id, input.supplierId), isNull(suppliers.deletedAt), eq(suppliers.active, true))).limit(1);
     if (!supplier) throw new AppError(404, 'Proveedor no encontrado o inactivo.');
     if (input.repairId) {
-      await assertModuleEnabled('repairs', tx);
-      await assertModuleEnabled('repair_parts', tx);
+      await assertModuleEnabled(request.auth!.businessId, 'repairs', tx);
+      await assertModuleEnabled(request.auth!.businessId, 'repair_parts', tx);
       const [repair] = await tx.select({ id: repairs.id }).from(repairs).where(and(eq(repairs.id, input.repairId), isNull(repairs.deletedAt))).limit(1);
       if (!repair) throw new AppError(404, 'Reparación no encontrada.');
     }
