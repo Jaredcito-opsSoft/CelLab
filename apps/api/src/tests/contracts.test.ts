@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { getTableColumns } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 import {
   businesses,
   businessMemberships,
@@ -23,6 +24,7 @@ import {
   saleReturns,
   sales,
   userRole,
+  users,
   warrantyClaimEvents,
   warrantyClaims,
 } from '../db/schema.js';
@@ -88,6 +90,9 @@ describe('contratos operativos del esquema', () => {
     assert.ok(membershipColumns.userId);
     assert.ok(membershipColumns.role);
     assert.ok(membershipColumns.active);
+    assert.equal(getTableConfig(businesses).enableRLS, true);
+    assert.equal(getTableConfig(businessMemberships).enableRLS, true);
+    assert.ok(getTableColumns(users).sessionVersion);
   });
 
   it('preserva enums usados por ventas, taller, compras e inventario', () => {
