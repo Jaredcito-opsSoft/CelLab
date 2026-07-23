@@ -21,7 +21,8 @@
                     "smoke:cash-concurrency":  "tsx src/scripts/smoke-cash-concurrency.ts",
                     "smoke:release":  "tsx src/scripts/smoke-release.ts",
                     "smoke:warranty":  "tsx src/scripts/smoke-warranty.ts",
-                    "smoke:reports":  "tsx src/scripts/smoke-reports.ts"
+                    "smoke:reports":  "tsx src/scripts/smoke-reports.ts",
+                    "smoke:tenant-foundation":  "tsx src/scripts/smoke-tenant-foundation.ts"
                     ,"audit:release-db": "tsx src/scripts/audit-release-database.ts",
                     "load:release:readonly": "tsx src/scripts/load-release-readonly.ts"
                 },

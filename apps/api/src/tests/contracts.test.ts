@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { getTableColumns } from 'drizzle-orm';
 import {
+  businesses,
+  businessMemberships,
   businessSettings,
+  businessStatus,
   cashMovementMethod,
   layawayItems,
   layawayPayments,
@@ -71,6 +74,22 @@ describe('contratos de módulos configurables', () => {
 });
 
 describe('contratos operativos del esquema', () => {
+  it('mantiene la identidad tenant y membresías con primary key compartida', () => {
+    const businessColumns = getTableColumns(businesses);
+    const settingsColumns = getTableColumns(businessSettings);
+    const membershipColumns = getTableColumns(businessMemberships);
+
+    assert.deepEqual(businessStatus.enumValues, ['active', 'inactive']);
+    assert.ok(businessColumns.id);
+    assert.ok(businessColumns.slug);
+    assert.ok(businessColumns.status);
+    assert.ok(settingsColumns.id);
+    assert.ok(membershipColumns.businessId);
+    assert.ok(membershipColumns.userId);
+    assert.ok(membershipColumns.role);
+    assert.ok(membershipColumns.active);
+  });
+
   it('preserva enums usados por ventas, taller, compras e inventario', () => {
     assert.deepEqual(paymentMethod.enumValues, ['cash', 'transfer', 'card', 'mixed']);
     assert.deepEqual(cashMovementMethod.enumValues, ['cash', 'transfer', 'card', 'other']);
