@@ -41,3 +41,4 @@ firebase-adminsdk*.json
 *.db
 *.dump
 *.sql.gz
+backups/

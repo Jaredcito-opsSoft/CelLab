@@ -54,6 +54,28 @@ const staff = await createUser('staff');
 const technician = await createUser('technician');
 const viewer = await createUser('viewer');
 
+const productResponse = await request('/api/operations/products', {
+  method: 'POST',
+  body: JSON.stringify({ sku: `COST-${runId}`, name: `Producto privacidad ${runId}`, costCents: 4321, priceCents: 8765, stock: 5, minimumStock: 1, active: true }),
+}, adminToken);
+if (!productResponse.response.ok) throw new Error(`No se pudo crear producto de privacidad: ${productResponse.data.error ?? productResponse.response.status}`);
+
+for (const [role, token, shouldSeeCosts] of [
+  ['admin', adminToken, true],
+  ['manager', manager.token, true],
+  ['staff', staff.token, false],
+  ['technician', technician.token, false],
+  ['viewer', viewer.token, false],
+] as const) {
+  const catalog = await request(`/api/operations/products?search=${encodeURIComponent(`COST-${runId}`)}`, {}, token);
+  const product = (catalog.data as { items: Array<Record<string, unknown>> }).items?.[0];
+  const exposesCost = Boolean(product && Object.prototype.hasOwnProperty.call(product, 'costCents'));
+  if (!catalog.response.ok || !product || exposesCost !== shouldSeeCosts) {
+    throw new Error(`privacidad de costo de catálogo incorrecta para ${role}`);
+  }
+  console.log(`ok catálogo protege costo para ${role}`);
+}
+
 await expectStatus('admin lista usuarios', 200, '/api/operations/users', {}, adminToken);
 await expectStatus('manager no lista usuarios', 403, '/api/operations/users', {}, manager.token);
 await expectStatus('viewer no muta clientes', 403, '/api/operations/clients', { method: 'POST', body: JSON.stringify({ name: 'Smoke Viewer', phone: '9999999999' }) }, viewer.token);
@@ -80,6 +102,11 @@ const itemResponse = await request(`/api/operations/repairs/${repairId}/items`, 
   body: JSON.stringify({ name: 'Concepto técnico sin costo permitido', quantity: 1, unitPriceCents: 10000, costCents: 9000, affectsInventory: false }),
 }, technician.token);
 if (!itemResponse.response.ok) throw new Error(`Técnico no pudo agregar concepto operativo: ${itemResponse.data.error ?? itemResponse.response.status}`);
+const technicianItem = (itemResponse.data as { item: Record<string, unknown> }).item;
+if (['costCentsSnapshot', 'costTotalCents', 'grossProfitCents', 'grossMarginBps'].some((field) => Object.prototype.hasOwnProperty.call(technicianItem, field))) {
+  throw new Error('La respuesta al técnico expone costos o margen del concepto.');
+}
+console.log('ok respuesta de concepto técnico omite costos y margen');
 
 const detailResponse = await request(`/api/operations/repairs/${repairId}`, {}, adminToken);
 if (!detailResponse.response.ok) throw new Error(`No se pudo leer reparación smoke: ${detailResponse.data.error ?? detailResponse.response.status}`);
@@ -88,5 +115,13 @@ if (!repairItem || repairItem.costTotalCents !== 0 || repairItem.grossProfitCent
   throw new Error('technician no modifica costos: el costo manual enviado por técnico fue persistido o calculado incorrectamente.');
 }
 console.log('ok technician no modifica costos manuales');
+
+const technicianDetail = await request(`/api/operations/repairs/${repairId}`, {}, technician.token);
+if (!technicianDetail.response.ok) throw new Error(`Técnico no pudo leer reparación: ${technicianDetail.data.error ?? technicianDetail.response.status}`);
+const safeItem = (technicianDetail.data as { item: { items: Array<Record<string, unknown>> } }).item.items[0];
+if (!safeItem || ['costCentsSnapshot', 'costTotalCents', 'grossProfitCents', 'grossMarginBps'].some((field) => Object.prototype.hasOwnProperty.call(safeItem, field))) {
+  throw new Error('El detalle de reparación expone costos o margen al técnico.');
+}
+console.log('ok detalle de reparación omite costos y margen para técnico');
 
 console.log('Smoke de permisos completado.');

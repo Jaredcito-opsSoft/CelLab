@@ -9,7 +9,11 @@
     "dev:web": "npm run dev -w @cellab/web",
     "dev:api": "npm run dev -w @cellab/api",
     "build": "npm run build -w @cellab/web && npm run build -w @cellab/api",
-    "typecheck": "npm run typecheck -w @cellab/web && npm run typecheck -w @cellab/api"
+    "typecheck": "npm run typecheck -w @cellab/web && npm run typecheck -w @cellab/api",
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "test": "npm run test:contracts -w @cellab/api && npm run check:encoding",
+    "verify": "npm run test && npm run typecheck && npm run build",
+    "preflight:release": "node scripts/preflight-release.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
@@ -18,4 +22,3 @@
     "node": ">=20"
   }
 }
-

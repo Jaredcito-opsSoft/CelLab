@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { desc, eq, ilike, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { users } from '../../db/schema.js';
+import { businessMemberships, businesses, users } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
@@ -38,77 +38,242 @@ const userSelect = {
   id: users.id,
   name: users.name,
   email: users.email,
-  role: users.role,
-  active: users.active,
+  role: businessMemberships.role,
+  active: businessMemberships.active,
   lastLoginAt: users.lastLoginAt,
-  createdAt: users.createdAt,
-  updatedAt: users.updatedAt,
+  createdAt: businessMemberships.createdAt,
+  updatedAt: businessMemberships.updatedAt,
 };
+
+async function getBusinessUser(businessId: string, userId: string, executor: typeof db | any = db) {
+  const [item] = await executor
+    .select({
+      ...userSelect,
+      membershipId: businessMemberships.id,
+      identityActive: users.active,
+    })
+    .from(businessMemberships)
+    .innerJoin(users, eq(users.id, businessMemberships.userId))
+    .where(and(
+      eq(businessMemberships.businessId, businessId),
+      eq(businessMemberships.userId, userId),
+    ));
+  return item;
+}
 
 usersRouter.get('/', asyncHandler(async (request, response) => {
   const { search, limit } = querySchema.parse(request.query);
-  const items = await db.select(userSelect).from(users)
-    .where(search ? or(ilike(users.name, `%${search}%`), ilike(users.email, `%${search}%`)) : undefined)
-    .orderBy(desc(users.createdAt))
+  const items = await db
+    .select(userSelect)
+    .from(businessMemberships)
+    .innerJoin(users, eq(users.id, businessMemberships.userId))
+    .where(and(
+      eq(businessMemberships.businessId, request.auth!.businessId),
+      search
+        ? or(ilike(users.name, `%${search}%`), ilike(users.email, `%${search}%`))
+        : undefined,
+    ))
+    .orderBy(desc(businessMemberships.createdAt))
     .limit(limit);
   response.json({ items });
 }));
 
 usersRouter.post('/', asyncHandler(async (request, response) => {
   const input = createSchema.parse(request.body);
+  const email = input.email.toLowerCase();
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+  if (existing) {
+    throw new AppError(
+      409,
+      'Ya existe una identidad con ese correo.',
+      'EMAIL_ALREADY_EXISTS',
+    );
+  }
+
   const passwordHash = await bcrypt.hash(input.password, 12);
-  const [item] = await db.insert(users).values({
-    name: input.name,
-    email: input.email.toLowerCase(),
-    passwordHash,
-    role: input.role,
-    active: input.active,
-  }).returning(userSelect);
+  const item = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(users)
+      .values({
+        name: input.name,
+        email,
+        passwordHash,
+        role: input.role,
+        active: true,
+      })
+      .returning({ id: users.id });
+    if (!user) throw new AppError(500, 'No fue posible crear la identidad del usuario.');
+
+    await tx.insert(businessMemberships).values({
+      businessId: request.auth!.businessId,
+      userId: user.id,
+      role: input.role,
+      active: input.active,
+    });
+    return getBusinessUser(request.auth!.businessId, user.id, tx);
+  });
+
   if (!item) throw new AppError(500, 'No fue posible crear el usuario.');
   await recordAuditLog({
     actor: request.auth!,
     action: 'users.create',
-    entityType: 'user',
-    entityId: item.id,
+    entityType: 'business_membership',
+    entityId: item.membershipId,
     summary: `Usuario creado: ${item.email}`,
-    metadata: { role: item.role, active: item.active },
+    metadata: {
+      businessId: request.auth!.businessId,
+      membershipId: item.membershipId,
+      userId: item.id,
+      role: item.role,
+      active: item.active,
+    },
   });
-  response.status(201).json({ item });
+  const { membershipId: _membershipId, identityActive: _identityActive, ...publicItem } = item;
+  response.status(201).json({ item: publicItem });
 }));
 
 usersRouter.patch('/:id', asyncHandler(async (request, response) => {
   const userId = idSchema.parse(request.params.id);
   const input = updateSchema.parse(request.body);
-  if (userId === request.auth!.userId && input.active === false) throw new AppError(400, 'No puedes desactivar tu propia cuenta.');
-  if (userId === request.auth!.userId && input.role && input.role !== 'admin') throw new AppError(400, 'No puedes quitarte el rol administrador.');
+  const businessId = request.auth!.businessId;
+  const normalizedEmail = input.email?.toLowerCase();
+  const item = await db.transaction(async (tx) => {
+    const [business] = await tx
+      .select({ id: businesses.id, status: businesses.status })
+      .from(businesses)
+      .where(eq(businesses.id, businessId))
+      .for('update');
+    if (!business || business.status !== 'active') {
+      throw new AppError(404, 'Negocio no disponible.', 'BUSINESS_NOT_AVAILABLE');
+    }
 
-  const values = { ...input, email: input.email?.toLowerCase(), updatedAt: new Date() };
-  const [item] = await db.update(users).set(values).where(eq(users.id, userId)).returning(userSelect);
-  if (!item) throw new AppError(404, 'Usuario no encontrado.');
+    // El bloqueo de la fila del negocio serializa todas las mutaciones de
+    // membresías administrativas. El rol del actor se revalida después de
+    // adquirirlo para impedir que una petición ya autorizada opere con un rol
+    // degradado por otra transacción concurrente.
+    const actor = await getBusinessUser(businessId, request.auth!.userId, tx);
+    if (!actor?.identityActive || !actor.active || actor.role !== 'admin') {
+      throw new AppError(403, 'Tu rol no permite realizar esta acción.', 'ROLE_FORBIDDEN');
+    }
+
+    const current = await getBusinessUser(businessId, userId, tx);
+    if (!current) throw new AppError(404, 'Usuario no encontrado en este negocio.');
+
+    if (userId === request.auth!.userId && input.active === false) {
+      throw new AppError(400, 'No puedes desactivar tu propia membresía.');
+    }
+    if (userId === request.auth!.userId && input.role && input.role !== 'admin') {
+      throw new AppError(400, 'No puedes quitarte el rol administrador.');
+    }
+
+    const removesActiveAdmin = current.active
+      && current.role === 'admin'
+      && (input.active === false || (input.role !== undefined && input.role !== 'admin'));
+    if (removesActiveAdmin) {
+      const [adminCount] = await tx
+        .select({ value: count() })
+        .from(businessMemberships)
+        .where(and(
+          eq(businessMemberships.businessId, businessId),
+          eq(businessMemberships.role, 'admin'),
+          eq(businessMemberships.active, true),
+        ));
+      if ((adminCount?.value ?? 0) <= 1) {
+        throw new AppError(
+          409,
+          'El negocio debe conservar al menos una membresía administradora activa.',
+          'LAST_ACTIVE_ADMIN_REQUIRED',
+        );
+      }
+    }
+
+    if (normalizedEmail) {
+      const [duplicate] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, normalizedEmail), ne(users.id, userId)))
+        .limit(1);
+      if (duplicate) {
+        throw new AppError(409, 'Ya existe una identidad con ese correo.', 'EMAIL_ALREADY_EXISTS');
+      }
+    }
+
+    const identityChanges: Partial<typeof users.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (input.name !== undefined) identityChanges.name = input.name;
+    if (normalizedEmail !== undefined) identityChanges.email = normalizedEmail;
+    if (input.role !== undefined) identityChanges.role = input.role;
+
+    await tx.update(users).set(identityChanges).where(eq(users.id, userId));
+    await tx
+      .update(businessMemberships)
+      .set({
+        role: input.role ?? current.role,
+        active: input.active ?? current.active,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(businessMemberships.businessId, businessId),
+        eq(businessMemberships.userId, userId),
+      ));
+    return getBusinessUser(businessId, userId, tx);
+  });
+
+  if (!item) throw new AppError(500, 'No fue posible actualizar el usuario.');
   await recordAuditLog({
     actor: request.auth!,
     action: 'users.update',
-    entityType: 'user',
-    entityId: item.id,
+    entityType: 'business_membership',
+    entityId: item.membershipId,
     summary: `Usuario actualizado: ${item.email}`,
-    metadata: input,
+    metadata: {
+      businessId,
+      membershipId: item.membershipId,
+      userId: item.id,
+      changes: input,
+    },
   });
-  response.json({ item });
+  const { membershipId: _membershipId, identityActive: _identityActive, ...publicItem } = item;
+  response.json({ item: publicItem });
 }));
 
 usersRouter.post('/:id/reset-password', asyncHandler(async (request, response) => {
   const userId = idSchema.parse(request.params.id);
   const input = resetPasswordSchema.parse(request.body);
+  const businessId = request.auth!.businessId;
+  const current = await getBusinessUser(businessId, userId);
+  if (!current) throw new AppError(404, 'Usuario no encontrado en este negocio.');
+
   const passwordHash = await bcrypt.hash(input.password, 12);
-  const [item] = await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId)).returning(userSelect);
-  if (!item) throw new AppError(404, 'Usuario no encontrado.');
+  await db
+    .update(users)
+    .set({
+      passwordHash,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
+  const item = await getBusinessUser(businessId, userId);
+  if (!item) throw new AppError(500, 'No fue posible reiniciar la contraseña.');
+
   await recordAuditLog({
     actor: request.auth!,
     action: 'users.reset_password',
-    entityType: 'user',
-    entityId: item.id,
+    entityType: 'business_membership',
+    entityId: item.membershipId,
     summary: `Contraseña reiniciada para ${item.email}`,
-    metadata: { targetEmail: item.email },
+    metadata: {
+      businessId,
+      membershipId: item.membershipId,
+      userId: item.id,
+      targetEmail: item.email,
+    },
   });
-  response.json({ item });
+  const { membershipId: _membershipId, identityActive: _identityActive, ...publicItem } = item;
+  response.json({ item: publicItem });
 }));

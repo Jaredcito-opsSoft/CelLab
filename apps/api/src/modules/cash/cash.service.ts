@@ -1,11 +1,11 @@
 import { and, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
 import { db } from '../../db/client.js';
-import { businessSettings, cashMovements, cashSessions, users } from '../../db/schema.js';
+import { businessSettings, cashMovements, cashRegisters, cashSessions, users } from '../../db/schema.js';
 import { AppError } from '../../lib/errors.js';
 
 type Tx = typeof db | any;
 type CashMethod = 'cash' | 'transfer' | 'card' | 'other';
-type CashMovementType = 'opening_cash' | 'sale_payment' | 'repair_payment' | 'manual_in' | 'manual_out' | 'sale_cancel' | 'repair_payment_void' | 'adjustment';
+type CashMovementType = 'opening_cash' | 'sale_payment' | 'sale_refund' | 'repair_payment' | 'manual_in' | 'manual_out' | 'sale_cancel' | 'repair_payment_void' | 'layaway_payment' | 'layaway_payment_void' | 'adjustment';
 type Direction = 'in' | 'out';
 
 type MovementRow = typeof cashMovements.$inferSelect & { userName?: string | null };
@@ -17,7 +17,7 @@ type BusinessContext = {
   timezone: string;
 };
 
-export const CASH_WITHOUT_OPEN_SESSION_WARNING = 'No hay caja abierta. La operaciÛn se registrÛ, pero no quedÛ asociada a un corte de caja.';
+export const CASH_WITHOUT_OPEN_SESSION_WARNING = 'No hay caja abierta. La operaci√≥n se registr√≥, pero no qued√≥ asociada a un corte de caja.';
 const DEFAULT_TIMEZONE = 'America/Mexico_City';
 
 export async function getBusiness(tx: Tx = db): Promise<BusinessContext> {
@@ -26,12 +26,21 @@ export async function getBusiness(tx: Tx = db): Promise<BusinessContext> {
     requireOpenCashForMoneyOperations: businessSettings.requireOpenCashForMoneyOperations,
     timezone: businessSettings.timezone,
   }).from(businessSettings).limit(1);
-  if (!business) throw new AppError(409, 'La configuraciÛn del negocio no existe.');
+  if (!business) throw new AppError(409, 'La configuraci√≥n del negocio no existe.');
   return { ...business, timezone: business.timezone || DEFAULT_TIMEZONE };
 }
 
-export async function getOpenCashSession(tx: Tx, businessId: string) {
-  const [session] = await tx.select().from(cashSessions).where(and(eq(cashSessions.businessId, businessId), eq(cashSessions.status, 'open'))).limit(1);
+export async function resolveCashRegister(tx: Tx, businessId: string, cashRegisterId?: string | null) {
+  const conditions = [eq(cashRegisters.businessId, businessId), eq(cashRegisters.active, true)];
+  conditions.push(cashRegisterId ? eq(cashRegisters.id, cashRegisterId) : eq(cashRegisters.isDefault, true));
+  const [register] = await tx.select().from(cashRegisters).where(and(...conditions)).limit(1);
+  if (!register) throw new AppError(409, cashRegisterId ? 'La caja f√≠sica no existe o est√° inactiva.' : 'No existe una caja principal activa.');
+  return register;
+}
+
+export async function getOpenCashSession(tx: Tx, businessId: string, cashRegisterId?: string | null) {
+  const register = await resolveCashRegister(tx, businessId, cashRegisterId);
+  const [session] = await tx.select().from(cashSessions).where(and(eq(cashSessions.businessId, businessId), eq(cashSessions.cashRegisterId, register.id), eq(cashSessions.status, 'open'))).limit(1);
   return session ?? null;
 }
 
@@ -75,7 +84,9 @@ export async function loadCashSessionDetail(sessionId: string, tx: Tx = db) {
   const [sessionRow] = await tx.select({
     session: cashSessions,
     openedByName: users.name,
-  }).from(cashSessions).innerJoin(users, eq(cashSessions.openedByUserId, users.id)).where(eq(cashSessions.id, sessionId)).limit(1);
+    registerName: cashRegisters.name,
+    registerCode: cashRegisters.code,
+  }).from(cashSessions).innerJoin(users, eq(cashSessions.openedByUserId, users.id)).innerJoin(cashRegisters, eq(cashSessions.cashRegisterId, cashRegisters.id)).where(eq(cashSessions.id, sessionId)).limit(1);
   if (!sessionRow) throw new AppError(404, 'Corte de caja no encontrado.');
   const [closedBy] = sessionRow.session.closedByUserId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, sessionRow.session.closedByUserId)).limit(1) : [null];
   const movementRows = await tx.select({
@@ -99,16 +110,19 @@ export async function loadCashSessionDetail(sessionId: string, tx: Tx = db) {
     userName: users.name,
   }).from(cashMovements).innerJoin(users, eq(cashMovements.createdByUserId, users.id)).where(eq(cashMovements.cashSessionId, sessionId)).orderBy(desc(cashMovements.createdAt));
   const summary = summarizeCash(sessionRow.session, movementRows);
-  return { ...sessionRow.session, openedByName: sessionRow.openedByName, closedByName: closedBy?.name ?? null, summary, movements: movementRows };
+  return { ...sessionRow.session, registerName: sessionRow.registerName, registerCode: sessionRow.registerCode, openedByName: sessionRow.openedByName, closedByName: closedBy?.name ?? null, summary, movements: movementRows };
 }
 
-export async function openCashSession(input: { openingCashCents: number; notes?: string | null }, userId: string) {
+export async function openCashSession(input: { cashRegisterId?: string | null; openingCashCents: number; notes?: string | null }, userId: string) {
   return db.transaction(async (tx) => {
     const business = await getBusiness(tx);
-    const current = await getOpenCashSession(tx, business.id);
-    if (current) throw new AppError(409, 'Ya hay una caja abierta. CiÈrrala antes de abrir otra.');
+    const register = await resolveCashRegister(tx, business.id, input.cashRegisterId);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`cash-register:${register.id}`}))`);
+    const current = await getOpenCashSession(tx, business.id, register.id);
+    if (current) throw new AppError(409, 'Esta caja ya tiene un turno abierto.');
     const [session] = await tx.insert(cashSessions).values({
       businessId: business.id,
+      cashRegisterId: register.id,
       openedByUserId: userId,
       openingCashCents: input.openingCashCents,
       expectedCashCents: input.openingCashCents,
@@ -130,10 +144,10 @@ export async function openCashSession(input: { openingCashCents: number; notes?:
   });
 }
 
-export async function addManualCashMovement(input: { type: 'manual_in' | 'manual_out'; method: CashMethod; amountCents: number; reason: string; note?: string | null }, userId: string) {
+export async function addManualCashMovement(input: { cashRegisterId?: string | null; type: 'manual_in' | 'manual_out'; method: CashMethod; amountCents: number; reason: string; note?: string | null }, userId: string) {
   return db.transaction(async (tx) => {
     const business = await getBusiness(tx);
-    const session = await getOpenCashSession(tx, business.id);
+    const session = await getOpenCashSession(tx, business.id, input.cashRegisterId);
     if (!session) throw new AppError(409, 'Abre caja antes de registrar movimientos.');
     const [movement] = await tx.insert(cashMovements).values({
       businessId: business.id,
@@ -150,10 +164,10 @@ export async function addManualCashMovement(input: { type: 'manual_in' | 'manual
   });
 }
 
-export async function closeCashSession(input: { countedCashCents: number; notes?: string | null }, userId: string) {
+export async function closeCashSession(input: { cashRegisterId?: string | null; countedCashCents: number; notes?: string | null }, userId: string) {
   return db.transaction(async (tx) => {
     const business = await getBusiness(tx);
-    const session = await getOpenCashSession(tx, business.id);
+    const session = await getOpenCashSession(tx, business.id, input.cashRegisterId);
     if (!session) throw new AppError(409, 'No hay caja abierta para cerrar.');
     const movements = await tx.select().from(cashMovements).where(eq(cashMovements.cashSessionId, session.id));
     const summary = summarizeCash(session, movements);
@@ -168,13 +182,13 @@ export async function closeCashSession(input: { countedCashCents: number; notes?
       notes: input.notes ?? session.notes,
       updatedAt: new Date(),
     }).where(and(eq(cashSessions.id, session.id), eq(cashSessions.status, 'open'))).returning();
-    if (!closed) throw new AppError(409, 'La caja ya no est· abierta.');
+    if (!closed) throw new AppError(409, 'La caja ya no est√° abierta.');
     return loadCashSessionDetail(closed.id, tx);
   });
 }
 
-export async function recordCashMovementIfOpen(tx: Tx, input: { businessId: string; type: CashMovementType; method: Exclude<CashMethod, 'other'> | CashMethod; amountCents: number; direction: Direction; referenceType: 'sale' | 'repair' | 'manual'; referenceId: string; referenceFolio: string; reason?: string | null; note?: string | null; userId: string }) {
-  const session = await getOpenCashSession(tx, input.businessId);
+export async function recordCashMovementIfOpen(tx: Tx, input: { businessId: string; cashRegisterId?: string | null; type: CashMovementType; method: CashMethod; amountCents: number; direction: Direction; referenceType: 'sale' | 'sale_return' | 'layaway' | 'repair' | 'manual'; referenceId: string; referenceFolio: string; reason?: string | null; note?: string | null; userId: string }) {
+  const session = await getOpenCashSession(tx, input.businessId, input.cashRegisterId);
   if (!session) {
     const [policy] = await tx.select({ requireOpenCashForMoneyOperations: businessSettings.requireOpenCashForMoneyOperations }).from(businessSettings).where(eq(businessSettings.id, input.businessId)).limit(1);
     if (policy?.requireOpenCashForMoneyOperations) throw new AppError(409, 'Abre caja antes de registrar operaciones con dinero.');
@@ -229,10 +243,10 @@ function addLocalDays(parts: { year: number; month: number; day: number }, days:
 export function localDateRange(fromDate: string, toDate: string, timeZone = DEFAULT_TIMEZONE) {
   const fromMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fromDate);
   const toMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(toDate);
-  if (!fromMatch || !toMatch) throw new AppError(400, 'Rango de fechas inv·lido.');
+  if (!fromMatch || !toMatch) throw new AppError(400, 'Rango de fechas inv√°lido.');
   const from = zonedTimeToUtc(Number(fromMatch[1]), Number(fromMatch[2]), Number(fromMatch[3]), 0, 0, 0, 0, timeZone);
   const to = zonedTimeToUtc(Number(toMatch[1]), Number(toMatch[2]), Number(toMatch[3]), 23, 59, 59, 999, timeZone);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) throw new AppError(400, 'Rango de fechas inv·lido.');
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) throw new AppError(400, 'Rango de fechas inv√°lido.');
   return { from, to };
 }
 

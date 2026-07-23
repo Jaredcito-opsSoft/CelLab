@@ -1,0 +1,295 @@
+/* Tablet and compact counter ergonomics for the two highest-frequency operations. */
+.checkout-submit-bar {
+  display: grid;
+  gap: 12px;
+}
+
+.cash-register-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(360px, 1.3fr);
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid rgba(23, 32, 29, .1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .86);
+}
+
+.cash-register-bar label { display: grid; gap: 6px; font-weight: 750; }
+.cash-register-bar form { display: grid; grid-template-columns: 120px minmax(150px, 1fr) auto; gap: 8px; }
+.cash-register-bar input, .cash-register-bar select, .cash-register-bar button { min-height: 44px; }
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .pos-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .product-pick-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .product-pick {
+    min-height: 132px;
+    padding: 16px;
+  }
+
+  .cart-receipt {
+    position: static;
+    min-height: auto;
+    padding: 22px;
+  }
+
+  .quick-scan-bar input,
+  .quick-scan-bar button,
+  .pos-search input,
+  .cart-receipt input,
+  .cart-receipt select,
+  .cart-receipt button,
+  .cash-workbench input,
+  .cash-workbench select,
+  .cash-workbench button {
+    min-height: 44px;
+  }
+
+  .quantity-control button,
+  .cart-lines .remove-line {
+    min-width: 44px;
+  }
+
+  .checkout-submit-bar {
+    position: static;
+    grid-template-columns: minmax(180px, .75fr) minmax(220px, 1fr);
+    align-items: stretch;
+    padding: 12px;
+    border: 1px solid rgba(23, 32, 29, .1);
+    border-radius: 18px;
+    background: rgba(255, 253, 245, .96);
+    box-shadow: 0 6px 18px rgba(23, 32, 29, .08);
+  }
+
+  .checkout-submit-bar .cart-total {
+    margin: 0;
+  }
+
+  .cash-hero h2 {
+    font-size: clamp(30px, 5vw, 46px);
+  }
+
+  .cash-hero .text-action {
+    min-width: max-content;
+    white-space: nowrap;
+  }
+
+  .cash-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .cash-actions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cash-session-row {
+    min-height: 64px;
+  }
+
+  .cash-register-bar { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+  .pos-shell,
+  .cash-workbench {
+    gap: 14px;
+  }
+
+  .pos-section-head {
+    align-items: start;
+    margin-bottom: 16px;
+  }
+
+  .pos-section-head h2,
+  .cash-hero h2 {
+    font-size: 26px;
+    letter-spacing: -.035em;
+    line-height: 1.08;
+  }
+
+  .pos-section-head .text-action,
+  .cash-hero .text-action {
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+
+  .quick-scan-bar {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .quick-scan-bar .panel-primary {
+    grid-column: 1 / -1;
+  }
+
+  .quick-scan-bar input,
+  .quick-scan-bar button,
+  .pos-search input,
+  .cart-receipt input,
+  .cart-receipt select,
+  .cart-receipt button,
+  .cash-workbench input,
+  .cash-workbench select,
+  .cash-workbench button {
+    min-height: 44px;
+  }
+
+  .product-pick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .product-pick {
+    min-height: 116px;
+    padding: 13px;
+  }
+
+  .product-pick b {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .cart-receipt {
+    min-height: auto;
+    padding: 18px 14px 20px;
+  }
+
+  .cart-lines article {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .cart-lines article > strong {
+    justify-self: end;
+  }
+
+  .quantity-control {
+    grid-column: 1;
+  }
+
+  .quantity-control button,
+  .cart-lines .remove-line {
+    min-width: 44px;
+  }
+
+  .cart-lines .remove-line {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .checkout-fields,
+  .cash-change-box {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-submit-bar {
+    position: static;
+    padding: 10px;
+    border: 1px solid rgba(23, 32, 29, .1);
+    border-radius: 16px;
+    background: rgba(255, 253, 245, .97);
+    box-shadow: 0 5px 16px rgba(23, 32, 29, .08);
+  }
+
+  .checkout-submit-bar .cart-total {
+    margin: 0;
+    padding: 0 2px;
+  }
+
+  .checkout-submit-bar .confirm-sale {
+    min-height: 50px;
+  }
+
+  .cash-hero,
+  .cash-open-card,
+  .cash-current,
+  .cash-history {
+    border-radius: 20px;
+  }
+
+  .cash-register-bar, .cash-register-bar form { grid-template-columns: 1fr; }
+
+  .cash-hero,
+  .cash-open-card,
+  .cash-current,
+  .cash-history {
+    padding: 16px;
+  }
+
+  .cash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .cash-kpi-grid article,
+  .cash-range-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .cash-kpi-grid b,
+  .cash-range-card > b {
+    margin: 7px 0;
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cash-actions-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cash-actions-grid .compact-form {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .cash-summary-ranges {
+    gap: 8px;
+  }
+
+  .cash-range-card small {
+    display: block;
+    line-height: 1.45;
+  }
+
+  .cash-session-row {
+    min-height: 56px;
+    padding: 12px 8px;
+  }
+
+  .cash-movement-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cash-movement-row strong {
+    grid-column: 2;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (max-width: 420px) {
+  .product-pick-grid,
+  .cash-kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .product-pick {
+    min-height: 102px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-pick,
+  .confirm-sale,
+  .cash-workbench button {
+    transition: none;
+  }
+}
