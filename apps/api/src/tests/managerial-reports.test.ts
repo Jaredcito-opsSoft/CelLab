@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { managerialReportQuery } from '../modules/reports/reports.routes.js';
+import { managerialReportQuery } from '../modules/reports/reports.contracts.js';
 
 describe('contrato de rango de reportes gerenciales', () => {
   it('acepta un rango inclusivo de hasta 366 días', () => {
