@@ -13,8 +13,8 @@ modulesRouter.use(requireAuth);
 
 const updateInput = z.object({ enabled: z.boolean() });
 
-modulesRouter.get('/', asyncHandler(async (_request, response) => {
-  response.json({ items: await listBusinessModules() });
+modulesRouter.get('/', asyncHandler(async (request, response) => {
+  response.json({ items: await listBusinessModules(request.auth!.businessId) });
 }));
 
 modulesRouter.patch('/:moduleKey', requireRole(...roleGroups.managers), asyncHandler(async (request, response) => {
@@ -22,7 +22,12 @@ modulesRouter.patch('/:moduleKey', requireRole(...roleGroups.managers), asyncHan
   if (!isBusinessModuleKey(moduleKey)) throw new AppError(404, 'Modulo no encontrado.');
 
   const input = updateInput.parse(request.body);
-  const item = await updateBusinessModule(moduleKey, input.enabled, request.auth!.userId);
+  const item = await updateBusinessModule(
+    request.auth!.businessId,
+    moduleKey,
+    input.enabled,
+    request.auth!.userId,
+  );
   const meta = businessModuleMap.get(moduleKey)!;
 
   await recordAuditLog({
@@ -31,7 +36,12 @@ modulesRouter.patch('/:moduleKey', requireRole(...roleGroups.managers), asyncHan
     entityType: 'business_module',
     entityId: moduleKey,
     summary: `${input.enabled ? 'Modulo activado' : 'Modulo desactivado'}: ${meta.label}`,
-    metadata: { moduleKey, enabled: input.enabled },
+    metadata: {
+      businessId: request.auth!.businessId,
+      membershipId: request.auth!.membershipId,
+      moduleKey,
+      enabled: input.enabled,
+    },
   });
 
   response.json({ item });

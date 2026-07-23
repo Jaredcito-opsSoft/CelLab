@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { businessSettings } from '../../db/schema.js';
+import { businesses, businessSettings } from '../../db/schema.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { recordAuditLog } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
@@ -28,25 +28,69 @@ const inputSchema = z.object({
   timezone: z.string().trim().min(3).max(80).default('America/Mexico_City'),
 });
 
-businessSettingsRouter.get('/', asyncHandler(async (_request, response) => {
-  const [item] = await db.select().from(businessSettings).limit(1);
-  if (!item) throw new AppError(404, 'La configuración del negocio aún no existe. Ejecuta el seed inicial.');
+businessSettingsRouter.get('/', asyncHandler(async (request, response) => {
+  const [item] = await db
+    .select()
+    .from(businessSettings)
+    .where(eq(businessSettings.id, request.auth!.businessId));
+  if (!item) {
+    throw new AppError(
+      404,
+      'La configuración del negocio aún no existe. Ejecuta el seed inicial.',
+      'BUSINESS_SETTINGS_NOT_FOUND',
+    );
+  }
   response.json({ item });
 }));
 
-businessSettingsRouter.patch('/', requireRole(...roleGroups.adminOnly), asyncHandler(async (request, response) => {
-  const [current] = await db.select({ id: businessSettings.id }).from(businessSettings).limit(1);
-  if (!current) throw new AppError(404, 'La configuración del negocio aún no existe. Ejecuta el seed inicial.');
-  const input = inputSchema.partial().parse(request.body);
-  const [item] = await db.update(businessSettings).set({ ...input, updatedAt: new Date() }).where(eq(businessSettings.id, current.id)).returning();
-  if (!item) throw new AppError(500, 'No fue posible actualizar la configuración.');
-  await recordAuditLog({
-    actor: request.auth!,
-    action: 'settings.update',
-    entityType: 'business_settings',
-    entityId: item.id,
-    summary: 'Configuración del negocio actualizada',
-    metadata: input,
-  });
-  response.json({ item });
-}));
+businessSettingsRouter.patch(
+  '/',
+  requireRole(...roleGroups.adminOnly),
+  asyncHandler(async (request, response) => {
+    const input = inputSchema.partial().parse(request.body);
+    const businessId = request.auth!.businessId;
+    const item = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ id: businessSettings.id })
+        .from(businessSettings)
+        .where(eq(businessSettings.id, businessId));
+      if (!current) {
+        throw new AppError(
+          404,
+          'La configuración del negocio aún no existe. Ejecuta el seed inicial.',
+          'BUSINESS_SETTINGS_NOT_FOUND',
+        );
+      }
+
+      const now = new Date();
+      if (input.businessName !== undefined) {
+        await tx
+          .update(businesses)
+          .set({ name: input.businessName, updatedAt: now })
+          .where(eq(businesses.id, businessId));
+      }
+
+      const [updated] = await tx
+        .update(businessSettings)
+        .set({ ...input, updatedAt: now })
+        .where(eq(businessSettings.id, businessId))
+        .returning();
+      return updated;
+    });
+
+    if (!item) throw new AppError(500, 'No fue posible actualizar la configuración.');
+    await recordAuditLog({
+      actor: request.auth!,
+      action: 'settings.update',
+      entityType: 'business_settings',
+      entityId: item.id,
+      summary: 'Configuración del negocio actualizada',
+      metadata: {
+        businessId,
+        membershipId: request.auth!.membershipId,
+        changes: input,
+      },
+    });
+    response.json({ item });
+  }),
+);

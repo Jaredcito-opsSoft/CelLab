@@ -64,15 +64,22 @@ publicRouter.get('/business-profile', async (_request, response, next) => {
 
 publicRouter.post('/repairs/track', trackLimiter, async (request, response, next) => {
   try {
-    const trackingEnabled = await isModuleEnabled('public_tracking');
-    const repairsEnabled = await isModuleEnabled('repairs');
+    const [business] = await db.select({
+      id: businessSettings.id,
+      businessName: businessSettings.businessName,
+    }).from(businessSettings).limit(1);
+    if (!business) {
+      response.status(409).json({ error: 'El negocio aún no está configurado.' });
+      return;
+    }
+    const trackingEnabled = await isModuleEnabled(business.id, 'public_tracking');
+    const repairsEnabled = await isModuleEnabled(business.id, 'repairs');
     if (!trackingEnabled || !repairsEnabled) {
       response.status(403).json({ error: 'Este módulo no está activado para este negocio.' });
       return;
     }
 
     const input = trackInput.parse(request.body);
-    const [business] = await db.select({ businessName: businessSettings.businessName }).from(businessSettings).limit(1);
     const [row] = await db.select({
       id: repairs.id,
       folio: repairs.folio,

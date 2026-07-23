@@ -76,8 +76,11 @@ async function getBusiness(tx: typeof db | any = db) {
   return business;
 }
 
-operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
-  const [business, moduleState] = await Promise.all([getBusiness(), readEnabledModules(['repairs'])]);
+operationsRouter.get('/dashboard/summary', asyncHandler(async (req, res) => {
+  const [business, moduleState] = await Promise.all([
+    getBusiness(),
+    readEnabledModules(req.auth!.businessId, ['repairs']),
+  ]);
   const { from: startOfToday, to: endOfToday } = rangeBounds('today', business.timezone);
   const startOfTodayIso = startOfToday.toISOString();
   const endOfTodayIso = endOfToday.toISOString();
@@ -142,7 +145,7 @@ operationsRouter.get('/dashboard/summary', asyncHandler(async (_req, res) => {
 }));
 operationsRouter.get('/reports/basic', asyncHandler(async (req, res) => {
   const business = await getBusiness();
-  const moduleState = await readEnabledModules(['repairs']);
+  const moduleState = await readEnabledModules(req.auth!.businessId, ['repairs']);
   const repairsEnabled = moduleState.get('repairs') ?? false;
   const todayBounds = rangeBounds('today', business.timezone);
   const fromDate = typeof req.query.from === 'string' && req.query.from ? req.query.from : null;
