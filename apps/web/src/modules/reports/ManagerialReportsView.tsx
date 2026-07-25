@@ -45,8 +45,8 @@ export function ManagerialReportsView({ token, currency }: { token: string; curr
   async function exportCsv() {
     setError('');
     try {
-      const base = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
-      const response = await fetch(`${base}/api/operations/reports/managerial.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+      const response = await fetch(`${base}/api/operations/reports/managerial.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) throw new Error('No fue posible exportar el reporte.');
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement('a');

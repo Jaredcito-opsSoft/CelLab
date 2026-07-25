@@ -57,6 +57,14 @@ export function InventoryCatalogView({ token, role, currency }: { token: string;
   }, [appliedSearch, canManage, categoryId, token]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (busy || !canManage || window.location.hash !== '#registrar-producto') return;
+    const timeout = window.setTimeout(() => {
+      document.getElementById('registrar-producto')?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 50);
+    return () => window.clearTimeout(timeout);
+  }, [busy, canManage]);
+
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedProductId) ?? null, [products, selectedProductId]);
   const activeCategories = categories.filter((category) => category.active);
 
@@ -166,16 +174,16 @@ export function InventoryCatalogView({ token, role, currency }: { token: string;
 
       <div className="catalog-layout">
         {canManage && <aside className="catalog-tools">
-          <form className="ops-form catalog-product-form" onSubmit={saveProduct} key={editingProduct?.id ?? 'new-product'}>
+          <form id="registrar-producto" className="ops-form catalog-product-form" onSubmit={saveProduct} key={editingProduct?.id ?? 'new-product'}>
             <div className="catalog-form-title"><PackagePlus /><div><span>{editingProduct ? 'Edición controlada' : 'Alta de producto'}</span><h3>{editingProduct ? editingProduct.name : 'Nuevo producto'}</h3></div></div>
             <label>SKU<input name="sku" defaultValue={editingProduct?.sku ?? ''} required /></label>
             <label><span>Código de barras</span><input name="barcode" defaultValue={editingProduct?.barcode ?? ''} autoComplete="off" /></label>
             <label className="wide">Producto<input name="name" defaultValue={editingProduct?.name ?? ''} required /></label>
             <label className="wide">Categoría<select name="categoryId" defaultValue={editingProduct?.categoryId ?? ''}><option value="">Sin categoría</option>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-            <label>Costo<input name="cost" type="number" min="0" step=".01" defaultValue={editingProduct ? (editingProduct.costCents ?? 0) / 100 : ''} /></label>
-            <label>Precio<input name="price" type="number" min="0" step=".01" defaultValue={editingProduct ? editingProduct.priceCents / 100 : ''} required /></label>
-            <label>Existencia<input name="stock" type="number" min="0" step="1" defaultValue={editingProduct?.stock ?? 0} required /></label>
-            <label>Stock mínimo<input name="minimumStock" type="number" min="0" step="1" defaultValue={editingProduct?.minimumStock ?? 0} required /></label>
+            <label>Costo<input name="cost" type="number" inputMode="decimal" min="0" step=".01" defaultValue={editingProduct ? (editingProduct.costCents ?? 0) / 100 : ''} /></label>
+            <label>Precio<input name="price" type="number" inputMode="decimal" min="0" step=".01" defaultValue={editingProduct ? editingProduct.priceCents / 100 : ''} required /></label>
+            <label>Existencia<input name="stock" type="number" inputMode="numeric" min="0" step="1" defaultValue={editingProduct?.stock ?? 0} required /></label>
+            <label>Stock mínimo<input name="minimumStock" type="number" inputMode="numeric" min="0" step="1" defaultValue={editingProduct?.minimumStock ?? 0} required /></label>
             <div className="form-actions">{editingProduct && <button type="button" onClick={() => setEditingProduct(null)}>Cancelar</button>}<button className="panel-primary" disabled={busy}>Guardar producto</button></div>
           </form>
 

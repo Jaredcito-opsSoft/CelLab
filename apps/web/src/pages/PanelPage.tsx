@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Activity, ArrowRight, BadgeCheck, Banknote, BarChart3, Boxes, ClipboardCheck, ClipboardList, ExternalLink, Gauge, History, LayoutDashboard, LogOut, PackagePlus, PanelLeftClose, PanelLeftOpen, ReceiptText, ScanSearch, Search, Settings, ShieldCheck, ShoppingCart, Store, TrendingUp, Truck, UserPlus, Users, Wrench } from 'lucide-react';
+import { Activity, ArrowRight, BadgeCheck, Banknote, BarChart3, Boxes, ClipboardCheck, ClipboardList, Download, ExternalLink, Gauge, History, Home, LayoutDashboard, LogOut, Menu, PackagePlus, PanelLeftClose, PanelLeftOpen, ReceiptText, ScanSearch, Search, Settings, ShieldCheck, ShoppingCart, Store, TrendingUp, Truck, UserPlus, Users, Wrench, X } from 'lucide-react';
 import { apiRequest } from '../lib/api';
+import { usePwa } from '../pwa/PwaProvider';
 import { RepairDetailView } from '../modules/repairs/RepairViews';
 import { InventoryMovementsView } from '../modules/inventory/InventoryViews';
 import { InventoryCatalogView } from '../modules/inventory/InventoryCatalogView';
@@ -171,12 +172,15 @@ function Login({ onLogin, message = '' }: { onLogin: (token: string) => void; me
 }
 
 type NavigationGroup = 'start' | 'operation' | 'catalog' | 'management';
-type NavigationItem = { key: Section; label: string; icon: LucideIcon; group: NavigationGroup; module?: BusinessModuleKey; adminOnly?: boolean };
+type NavigationItem = { key: Section; label: string; icon: LucideIcon; group: NavigationGroup; module?: BusinessModuleKey; adminOnly?: boolean; roles?: Role[] };
+const salesRoles: Role[] = ['admin', 'manager', 'staff'];
+const workshopRoles: Role[] = ['admin', 'manager', 'staff', 'technician'];
+const inventoryRoles: Role[] = ['admin', 'manager'];
 const navigationGroupLabels: Record<NavigationGroup, string> = { start: 'Inicio', operation: 'Operación', catalog: 'Catálogo', management: 'Gestión' };
 const navigationGroups: NavigationGroup[] = ['start', 'operation', 'catalog', 'management'];
 const nav: NavigationItem[] = [
   { key: 'dashboard', label: 'Resumen operativo', icon: LayoutDashboard, group: 'start' },
-  { key: 'sales', label: 'Venta rápida', icon: ShoppingCart, group: 'operation', module: 'core_pos' },
+  { key: 'sales', label: 'Venta rápida', icon: ShoppingCart, group: 'operation', module: 'core_pos', roles: salesRoles },
   { key: 'sales-history', label: 'Historial de ventas', icon: History, group: 'operation', module: 'core_pos' },
   { key: 'layaways', label: 'Apartados', icon: ReceiptText, group: 'operation', module: 'layaways' },
   { key: 'cash', label: 'Caja y turnos', icon: Banknote, group: 'operation', module: 'cash' },
@@ -222,7 +226,7 @@ function Panel({ token, session, onLogout }: { token: string; session: SessionPa
   const isFocusMode = canFocus && focusMode;
   const enabledModules = new Set(modules.filter((module) => module.enabled).map((module) => module.key));
   const isModuleEnabled = (moduleKey?: BusinessModuleKey) => !moduleKey || enabledModules.has(moduleKey);
-  const visibleNav = nav.filter((item) => isModuleEnabled(item.module) && (!item.adminOnly || role === 'admin'));
+  const visibleNav = nav.filter((item) => isModuleEnabled(item.module) && (!item.adminOnly || role === 'admin') && (!item.roles || item.roles.includes(role)));
   const blockedModuleKey = sectionModules[section];
   const waitingForModuleState = Boolean(blockedModuleKey && !modulesLoaded);
   const blockedModule = modulesLoaded && blockedModuleKey && !isModuleEnabled(blockedModuleKey)
@@ -336,8 +340,8 @@ function Panel({ token, session, onLogout }: { token: string; session: SessionPa
         {error && <div className="panel-alert">{error}<button onClick={() => void load()}>Reintentar</button></div>}
         {(busy || waitingForModuleState) && <div className="panel-loading">Sincronizando operación…</div>}
         {blockedModule && <ModuleDisabled module={blockedModule} />}
-        {!blockedModule && !busy && section === 'dashboard' && <Dashboard summary={summary} business={business} modules={modules} onNavigate={navigate} />}
-        {!blockedModule && !busy && section === 'clients' && <Clients token={token} items={clients} reload={load} />}
+        {!blockedModule && !busy && section === 'dashboard' && <Dashboard summary={summary} business={business} modules={modules} onNavigate={navigate} token={token} role={role} />}
+        {!blockedModule && !busy && section === 'clients' && <Clients token={token} role={role} items={clients} reload={load} />}
         {!blockedModule && !busy && section === 'products' && <InventoryCatalogView token={token} role={role} currency={business?.currency ?? 'MXN'} />}
         {!blockedModule && !busy && section === 'inventory-movements' && <InventoryMovementsView token={token} role={role} currency={business?.currency ?? 'MXN'} />}
         {!blockedModule && !busy && section === 'suppliers' && <SuppliersView token={token} role={role} />}
@@ -358,17 +362,68 @@ function Panel({ token, session, onLogout }: { token: string; session: SessionPa
         {!blockedModule && !busy && section === 'audit' && <AuditLogView token={token} role={role} />}
         {!blockedModule && !busy && section === 'settings' && business && <BusinessConfiguration token={token} item={business} role={role} modules={modules} onModulesChanged={loadModules} onSaved={loadBusiness} />}
       </section>
+      <MobileNavigation items={visibleNav} section={section} onNavigate={(next) => { setSearch(''); navigate(next); }} onLogout={onLogout} />
     </main>
   );
 }
 
-function Dashboard({ summary, business, modules, onNavigate }: { summary: DashboardSummary | null; business: BusinessSettings | null; modules: BusinessModule[]; onNavigate: (next: Section, path?: string) => void }) {
-  if (!summary) return <section className="dashboard-empty"><Gauge /><h2>Preparando centro de mando</h2><p>Cuando el API responda, aquí verás ventas, caja e inventario según los módulos activos.</p></section>;
-  const currency = business?.currency ?? 'MXN';
+function MobileNavigation({ items, section, onNavigate, onLogout }: { items: NavigationItem[]; section: Section; onNavigate: (next: Section) => void; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const { canInstall, install, isStandalone } = usePwa();
+  const primaryKeys: Section[] = ['dashboard', 'sales', 'products', 'cash'];
+  const primary = [
+    { key: 'dashboard' as Section, label: 'Inicio', icon: Home },
+    { key: 'sales' as Section, label: 'Vender', icon: ShoppingCart },
+    { key: 'products' as Section, label: 'Inventario', icon: Boxes },
+    { key: 'cash' as Section, label: 'Caja', icon: Banknote },
+  ].filter((item) => items.some((visible) => visible.key === item.key));
+  const secondary = items.filter((item) => !primaryKeys.includes(item.key));
+  const secondaryActive = secondary.some((item) => item.key === section);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [open]);
+
+  return <>
+    <nav className="mobile-navigation" aria-label="Acciones principales" style={{ gridTemplateColumns: `repeat(${primary.length + 1}, minmax(0, 1fr))` }}>
+      {primary.map(({ key, label, icon: Icon }) => <button type="button" key={key} className={section === key ? 'active' : ''} aria-current={section === key ? 'page' : undefined} onClick={() => onNavigate(key)}><Icon /><span>{label}</span></button>)}
+      <button type="button" className={open || secondaryActive ? 'active' : ''} aria-expanded={open} aria-controls="mobile-more-menu" onClick={() => setOpen((current) => !current)}><Menu /><span>Más</span></button>
+    </nav>
+    {open && <div className="mobile-more-backdrop" onClick={() => setOpen(false)}>
+      <section id="mobile-more-menu" className="mobile-more-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title" onClick={(event) => event.stopPropagation()}>
+        <header><div><p className="panel-eyebrow">LocalPOS</p><h2 id="mobile-more-title">Más funciones</h2></div><button type="button" aria-label="Cerrar menú" onClick={() => setOpen(false)}><X /></button></header>
+        <div className="mobile-more-grid">{secondary.map(({ key, label, icon: Icon }) => <button type="button" key={key} className={section === key ? 'active' : ''} onClick={() => { setOpen(false); onNavigate(key); }}><Icon /><span>{label}</span></button>)}</div>
+        {canInstall && !isStandalone && <button type="button" className="mobile-install-action" onClick={() => void install()}><Download /><span><b>Instalar LocalPOS</b><small>Acceso directo desde este dispositivo</small></span></button>}
+        <button type="button" className="mobile-logout-action" onClick={onLogout}><LogOut />Cerrar sesión</button>
+      </section>
+    </div>}
+  </>;
+}
+
+function Dashboard({ summary, business, modules, onNavigate, token, role }: { summary: DashboardSummary | null; business: BusinessSettings | null; modules: BusinessModule[]; onNavigate: (next: Section, path?: string) => void; token: string; role: Role }) {
   const enabled = new Set(modules.filter((module) => module.enabled).map((module) => module.key));
   const repairsEnabled = enabled.has('repairs');
   const inventoryEnabled = enabled.has('inventory_basic');
   const cashEnabled = enabled.has('cash');
+  const [cashOpen, setCashOpen] = useState<boolean | null>(null);
+  const canManageCash = role === 'admin' || role === 'manager';
+
+  useEffect(() => {
+    if (!cashEnabled) return;
+    let active = true;
+    void apiRequest<{ item: unknown | null }>('/api/operations/cash/current', {}, token)
+      .then((result) => { if (active) setCashOpen(Boolean(result.item)); })
+      .catch(() => { if (active) setCashOpen(null); });
+    return () => { active = false; };
+  }, [cashEnabled, token]);
+
+  if (!summary) return <section className="dashboard-empty"><Gauge /><h2>Preparando tu operación</h2><p>Estamos consultando caja, ventas e inventario.</p></section>;
+  const currency = business?.currency ?? 'MXN';
   const stats = [
     { label: 'Ingresos de hoy', value: money(summary.todaySalesTotalCents, currency), note: `${summary.todaySalesCount} ventas completadas`, icon: <TrendingUp /> },
     ...(repairsEnabled ? [
@@ -378,20 +433,22 @@ function Dashboard({ summary, business, modules, onNavigate }: { summary: Dashbo
     ...(inventoryEnabled ? [{ label: 'Stock crítico', value: summary.lowStockCount, note: `${summary.productsCount} productos registrados`, icon: <Boxes />, tone: summary.lowStockCount > 0 ? 'warning' : 'good' }] : []),
     { label: 'Clientes', value: summary.customersCount, note: 'Base operativa actual', icon: <Users /> },
   ];
+  const cashActionLabel = canManageCash ? (cashOpen ? 'Cerrar caja' : 'Abrir caja') : 'Consultar caja';
+  const cashActionNote = cashOpen === null ? 'Consultar estado del turno' : cashOpen ? 'Finalizar y revisar el turno' : 'Preparar el turno para vender';
   const actions = [
-    { label: 'Nueva venta', note: 'Punto de venta rápido', icon: <ShoppingCart />, run: () => onNavigate('sales') },
-    ...(repairsEnabled ? [{ label: 'Recibir equipo', note: 'Abrir folio de taller', icon: <ClipboardList />, run: () => onNavigate('repairs') }] : []),
-    { label: 'Nuevo cliente', note: 'Alta de mostrador', icon: <UserPlus />, run: () => onNavigate('clients') },
+    ...(cashEnabled ? [{ label: cashActionLabel, note: cashActionNote, icon: <Banknote />, run: () => onNavigate('cash'), priority: cashOpen ? undefined : 'primary' }] : []),
+    ...(salesRoles.includes(role) ? [{ label: 'Vender', note: 'Buscar producto y cobrar', icon: <ShoppingCart />, run: () => onNavigate('sales'), priority: 'primary' }] : []),
     ...(inventoryEnabled ? [
-      { label: 'Inventario', note: 'Productos y existencias', icon: <PackagePlus />, run: () => onNavigate('products') },
-      { label: 'Movimientos', note: 'Trazabilidad de stock', icon: <Activity />, run: () => onNavigate('inventory-movements') },
+      { label: 'Consultar inventario', note: 'Precios y existencias actuales', icon: <Boxes />, run: () => onNavigate('products') },
+      ...(inventoryRoles.includes(role) ? [{ label: 'Registrar producto', note: 'Agregar un artículo al catálogo', icon: <PackagePlus />, run: () => onNavigate('products', '/panel/inventario#registrar-producto') }] : []),
     ] : []),
-    ...(cashEnabled ? [{ label: 'Caja', note: 'Abrir, cerrar y cortar turno', icon: <Banknote />, run: () => onNavigate('cash') }] : []),
+    ...(workshopRoles.includes(role) ? [{ label: 'Registrar cliente', note: 'Alta rápida de mostrador', icon: <UserPlus />, run: () => onNavigate('clients') }] : []),
+    ...(repairsEnabled && workshopRoles.includes(role) ? [{ label: 'Recibir equipo', note: 'Abrir folio de taller', icon: <ClipboardList />, run: () => onNavigate('repairs') }] : []),
   ];
   return <div className="ops-dashboard"><section className="dashboard-metrics"><div className="metric-list">{stats.map((x, i) => <StatCard {...x} key={i} />)}</div><div className="quick-action-grid">{actions.map((x, i) => <QuickAction {...x} key={i} />)}</div></section><section className="dashboard-activity">{repairsEnabled && <RecentPanel title="Reparaciones recientes" empty="Sin ingresos de taller hoy.">{summary.recentRepairs.map((x) => <div className="activity-row" key={x.id}><span><b>{x.brand} {x.model}</b><small>{x.clientName} · {date(x.createdAt)}</small></span><StatusBadge value={x.status} /></div>)}</RecentPanel>}<RecentPanel title="Últimas ventas" empty="No hay ventas registradas hoy.">{summary.recentSales.map((x) => <div className="activity-row" key={x.id}><span><b>{x.folio}</b><small>{paymentLabel(x.paymentMethod)} · {date(x.createdAt)} · {x.customerName ?? 'Mostrador'}</small></span><strong>{money(x.totalCents, currency)}</strong></div>)}</RecentPanel>{inventoryEnabled && <RecentPanel title="Kardex de inventario" empty="Sin movimientos de stock recientes.">{summary.recentInventoryMovements.map((x) => <div className="activity-row" key={x.id}><span><b>{movementLabel(x.type)}</b><small>{x.productName} · {date(x.createdAt)}</small></span><strong>{x.previousStock} → {x.newStock}</strong></div>)}</RecentPanel>}</section></div>;
 }
 function StatCard({ label, value, note, icon, tone }: { label: string; value: string | number; note: string; icon: ReactNode; tone?: string }) { return <article className={`stat-card ${tone ? `stat-${tone}` : ''}`}><span className="stat-icon">{icon}</span><small>{label}</small><b>{value}</b><p>{note}</p></article>; }
-function QuickAction({ label, note, icon, run }: { label: string; note: string; icon: ReactNode; run: () => void }) { return <button className="quick-action" onClick={run}><span>{icon}</span><b>{label}</b><small>{note}</small><ArrowRight /></button>; }
+function QuickAction({ label, note, icon, run, priority }: { label: string; note: string; icon: ReactNode; run: () => void; priority?: string }) { return <button className={`quick-action${priority ? ` quick-action--${priority}` : ''}`} onClick={run}><span>{icon}</span><b>{label}</b><small>{note}</small><ArrowRight /></button>; }
 function RecentPanel({ title, empty, children }: { title: string; empty: string; children: ReactNode[] }) { return <article className="recent-panel"><h3>{title}</h3>{children.length ? children : <p className="empty-state">{empty}</p>}</article>; }
 function StatusBadge({ value }: { value: string }) { return <em className={`status-badge status-${value}`}>{statusLabel[value] ?? (value === 'completed' ? 'Completada' : value === 'cancelled' ? 'Cancelada' : value)}</em>; }
 function TrackingPanel() { return <section className="utility-panel"><div><p className="panel-eyebrow">Rastreo público</p><h2>Consulta para clientes sin entrar al panel.</h2><p>Usa esta vista para probar folios REP desde la experiencia pública.</p></div><a className="panel-primary ghost-link" href="/#rastrear" target="_blank" rel="noreferrer"><ExternalLink />Abrir rastreador</a></section>; }
@@ -472,11 +529,13 @@ function ReportsPanel({ token, currency }: { token: string; currency: string }) 
   return <section className="reports-workbench"><div className="reports-hero"><div><p className="panel-eyebrow">Reportes básicos</p><h2>Corte operativo por rango</h2><p>Consulta ingresos POS, reparaciones, stock bajo y movimientos recientes.</p></div><form className="report-filter" onSubmit={(event) => { event.preventDefault(); void load(); }}><label>Desde<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>Hasta<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label><button className="panel-primary" disabled={busy}>{busy ? 'Consultando…' : 'Actualizar'}</button></form></div>{error && <p className="panel-alert">{error}</p>}<div className="report-preview report-preview--live"><article><span>Ingresos</span><b>{money(report?.incomeCents ?? 0, currency)}</b><small>{report?.salesCount ?? 0} ventas completadas</small></article><article><span>Pendientes</span><b>{report?.pendingRepairs ?? 0}</b><small>Reparaciones abiertas</small></article><article><span>Entregadas</span><b>{report?.deliveredRepairs ?? 0}</b><small>En el rango seleccionado</small></article><article><span>Stock bajo</span><b>{report?.lowStockProducts ?? 0}</b><small>Productos por reponer</small></article></div><article className="recent-panel report-movements"><h3>Movimientos recientes</h3>{report?.recentMovements?.length ? report.recentMovements.map((m) => <div className="activity-row" key={m.id}><span><b>{movementLabel(m.type)}</b><small>{m.productName} · {m.userName} · {date(m.createdAt)}</small></span><strong>{m.previousStock} → {m.newStock}</strong></div>) : <p className="empty-state">Sin movimientos recientes.</p>}</article></section>;
 }
 
-function Clients({ token, items, reload }: { token: string; items: Client[]; reload: () => Promise<void> }) {
+function Clients({ token, role, items, reload }: { token: string; role: Role; items: Client[]; reload: () => Promise<void> }) {
   const [edit, setEdit] = useState<Client | null>(null);
+  const canEdit = workshopRoles.includes(role);
+  const canArchive = role === 'admin' || role === 'manager';
   async function save(e: FormEvent<HTMLFormElement>) { e.preventDefault(); const f = new FormData(e.currentTarget); const body = { name: f.get('name'), phone: f.get('phone'), email: f.get('email') || null, notes: f.get('notes') || null }; await apiRequest(edit ? `/api/operations/clients/${edit.id}` : '/api/operations/clients', { method: edit ? 'PATCH' : 'POST', body: JSON.stringify(body) }, token); setEdit(null); e.currentTarget.reset(); await reload(); }
   async function remove(id: string) { if (!confirm('¿Archivar este cliente? Su historial se conservará.')) return; await apiRequest(`/api/operations/clients/${id}`, { method: 'DELETE' }, token); await reload(); }
-  return <ModuleLayout title={edit ? 'Editar cliente' : 'Registrar cliente'} icon={<UserPlus />} form={<form className="ops-form" onSubmit={save} key={edit?.id ?? 'new'}><label>Nombre<input name="name" defaultValue={edit?.name} required /></label><label>Teléfono<input name="phone" defaultValue={edit?.phone} required /></label><label>Correo<input name="email" type="email" defaultValue={edit?.email ?? ''} /></label><label className="wide">Notas<textarea name="notes" defaultValue={edit?.notes ?? ''} /></label><div className="form-actions">{edit && <button type="button" onClick={() => setEdit(null)}>Cancelar</button>}<button className="panel-primary">Guardar cliente</button></div></form>}><DataTable empty="Aún no hay clientes. Registra el primero.">{items.map((x) => <div className="data-row client-row" key={x.id}><div><b>{x.name}</b><span>{x.phone}</span></div><span>{x.email ?? 'Sin correo'}</span><div className="row-actions"><button onClick={() => setEdit(x)}>Editar</button><button onClick={() => void remove(x.id)}>Archivar</button></div></div>)}</DataTable></ModuleLayout>;
+  return <ModuleLayout title={edit ? 'Editar cliente' : 'Registrar cliente'} icon={<UserPlus />} form={canEdit ? <form className="ops-form" onSubmit={save} key={edit?.id ?? 'new'}><label>Nombre<input name="name" defaultValue={edit?.name} required /></label><label>Teléfono<input name="phone" defaultValue={edit?.phone} required /></label><label>Correo<input name="email" type="email" defaultValue={edit?.email ?? ''} /></label><label className="wide">Notas<textarea name="notes" defaultValue={edit?.notes ?? ''} /></label><div className="form-actions">{edit && <button type="button" onClick={() => setEdit(null)}>Cancelar</button>}<button className="panel-primary">Guardar cliente</button></div></form> : <p className="inventory-readonly">Tu rol puede consultar clientes, pero no registrar ni editar datos.</p>}><DataTable empty="Aún no hay clientes. Registra el primero.">{items.map((x) => <div className="data-row client-row" key={x.id}><div><b>{x.name}</b><span>{x.phone}</span></div><span>{x.email ?? 'Sin correo'}</span><div className="row-actions">{canEdit && <button onClick={() => setEdit(x)}>Editar</button>}{canArchive && <button onClick={() => void remove(x.id)}>Archivar</button>}</div></div>)}</DataTable></ModuleLayout>;
 }
 
 function Products({ token, role, items, reload, currency }: { token: string; role: Role; items: Product[]; reload: () => Promise<void>; currency: string }) {
