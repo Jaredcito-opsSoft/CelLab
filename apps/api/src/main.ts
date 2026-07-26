@@ -70,7 +70,7 @@ app.use('/api/operations', inventoryCatalogRouter);
 app.use('/api/operations', operationsRouter);
 app.use(errorHandler);
 
-const server = app.listen(env.PORT, () => logger.info('api_started', {
+const server = app.listen(env.PORT, '0.0.0.0', () => logger.info('api_started', {
   port: env.PORT,
   environment: env.NODE_ENV,
   version: env.RELEASE_VERSION,
