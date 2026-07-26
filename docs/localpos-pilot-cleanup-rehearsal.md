@@ -87,3 +87,20 @@ La operación se ejecutó dentro de una transacción y se confirmó únicamente 
 6. Definir módulos activos del primer piloto; actualmente siguen activos `advanced_reports`, `layaways`, `pos_advanced`, `public_tracking`, `repairs` y `suppliers`.
 
 No debe trasladarse la limpieza a Supabase hasta resolver estos puntos y tomar un respaldo final inmediatamente antes de la ventana de mantenimiento.
+
+## Ejecución remota autorizada
+
+Las decisiones pendientes del ensayo quedaron resueltas por autorización expresa del propietario: todo el contenido operativo era de prueba y solo debía conservarse la identidad administrativa real.
+
+La ejecución remota:
+
+- usó una sola transacción con aislamiento `SERIALIZABLE`;
+- verificó negocio, settings, ledger, usuario y membership protegidos antes de borrar;
+- siguió el orden real de claves foráneas;
+- no utilizó `TRUNCATE`, `DROP`, seeds ni coincidencias parciales;
+- reemplazó las cajas de prueba por una única `MAIN-01`;
+- normalizó las 12 filas de módulos;
+- validó todos los invariantes antes de confirmar;
+- habría revertido la transacción completa ante cualquier diferencia.
+
+Los smokes de escritura posteriores se ejecutaron exclusivamente sobre una restauración local del estado limpio. No se reintrodujeron datos de prueba en Supabase.

@@ -211,3 +211,29 @@ La copia ensayada todavía no cumple ese estado porque se conservaron datos prob
 El 2026-07-25 el propietario confirmó que no existe operación real relevante y autorizó clasificar como `PRUEBA` todos los datos actuales, salvo la cuenta administrativa real `c6f0d352-0f5b-4793-80f0-932a58e56459`.
 
 La clasificación final enmascarada está en `docs/localpos-pilot-ambiguous-data-review.md`. La limpieza remota sigue separada y no se ejecutó durante la aplicación de 0014.
+
+## Cierre de la auditoría
+
+El propietario autorizó posteriormente tratar como prueba todos los datos excepto la identidad administrativa protegida, su membership, el negocio y su configuración. Con esa autorización se realizó una limpieza remota transaccional, sin coincidencias parciales ni seeds.
+
+Estado final verificado:
+
+| Recurso | Filas |
+|---|---:|
+| Negocios | 1 |
+| Configuraciones | 1 |
+| Usuarios | 1 |
+| Memberships | 1 |
+| Cajas | 1 |
+| Sesiones y movimientos de caja | 0 |
+| Productos y categorías | 0 |
+| Clientes | 0 |
+| Ventas y dependencias | 0 |
+| Reparaciones y dependencias | 0 |
+| Inventario y movimientos | 0 |
+| Proveedores y compras | 0 |
+| Apartados y garantías | 0 |
+| Folios | 0 |
+| Auditoría de pruebas | 0 |
+
+La caja restante es `MAIN-01`, activa y predeterminada. Los únicos módulos activos son `core_pos`, `cash` e `inventory_basic`. No quedaron referencias a datos demo o smoke.

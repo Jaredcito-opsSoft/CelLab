@@ -139,3 +139,21 @@ Movimientos: 0
 Proveedores: 0
 Compras: 0
 ```
+
+## Estado de ejecución
+
+Plan ejecutado y validado el 2026-07-25.
+
+- Ventana iniciada: 2026-07-25 21:31:16, hora de México.
+- Respaldo post-0014 creado y restaurado antes de la limpieza.
+- Dry run aprobado: 36 usuarios/36 memberships, con 35 eliminaciones y una identidad protegida.
+- Limpieza confirmada en una única transacción `SERIALIZABLE`.
+- Caja final: `MAIN-01`, `Caja principal`, activa y predeterminada.
+- Sesiones abiertas: 0.
+- Módulos activos: `core_pos`, `cash`, `inventory_basic`.
+- Módulos restantes: registrados pero desactivados.
+- Ledger: 15 migraciones.
+- API remota: healthchecks, login, sesión y lecturas operativas aprobadas.
+- Baseline limpio creado y restaurado localmente.
+
+El detalle verificable se conserva en `docs/localpos-pilot-clean-baseline.md`.

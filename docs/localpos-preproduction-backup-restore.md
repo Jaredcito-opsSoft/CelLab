@@ -241,3 +241,27 @@ Si 0014 falla en producción:
 ## Resultado del gate técnico
 
 `0014` quedó aplicada y verificada en Supabase. La limpieza remota permanece separada hasta ejecutar el plan transaccional autorizado, conservar la cuenta administrativa real y normalizar caja, sesión y módulos del piloto.
+
+## Respaldo posterior a 0014 y línea base limpia
+
+La limpieza autorizada se ejecutó el 2026-07-25 únicamente después de crear y restaurar el respaldo posterior a `0014`:
+
+- Dump: `localpos-post-0014-before-cleanup-20260725-213304.dump`.
+- Formato: custom de PostgreSQL 17.
+- Tamaño: 184,037 bytes.
+- SHA-256: `0D77984F0736D0BEF52DBC5555681E670A07F91DD98823EB27BCEE2085AEA1F1`.
+- Restauración: aprobada en PostgreSQL 17.
+- Ledger restaurado: 15 migraciones.
+- Conteos restaurados: 1 negocio, 36 usuarios y 36 memberships, idénticos al origen.
+- API sobre la restauración: `/health/live` y `/health/ready` respondieron `200`.
+
+Después de limpiar y validar el origen se creó el punto de recuperación del piloto:
+
+- Dump: `localpos-pilot-clean-baseline-20260725-214800.dump`.
+- Tamaño: 138,597 bytes.
+- SHA-256: `F96DA4169FB3EB890BC85E628EAC3E9AAA963CB0EE8BF6E878D8F8FF232F1B75`.
+- Restauración: aprobada en `localpos_pilot_clean_baseline_restore`.
+- API restaurada: healthchecks, login y sesión respondieron `200`.
+- Estado: 15 migraciones, 1 negocio, 1 configuración, 1 usuario, 1 membership, 1 caja y cero datos operativos.
+
+Ambos dumps y sus manifiestos permanecen fuera del repositorio. No contienen secretos en sus nombres ni en la documentación.
