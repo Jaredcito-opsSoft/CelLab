@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm run build -w @cellab/web",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
