@@ -1,6 +1,9 @@
 import { ChatbotWidget } from '../components/ChatbotWidget';
 import { RepairTracker } from '../components/RepairTracker';
 import { BrandsSection } from '../components/landing/BrandsSection';
+import { AboutSection } from '../components/landing/AboutSection';
+import { CaseStoriesSection } from '../components/landing/CaseStoriesSection';
+import { RecoverySupportSection } from '../components/landing/RecoverySupportSection';
 import { FaqSection } from '../components/landing/FaqSection';
 import { FinalCtaSection } from '../components/landing/FinalCtaSection';
 import { Footer } from '../components/landing/Footer';
@@ -11,6 +14,8 @@ import { ProductsSection } from '../components/landing/ProductsSection';
 import { ServicesSection } from '../components/landing/ServicesSection';
 import { TrackingPreviewSection } from '../components/landing/TrackingPreviewSection';
 import { TrustSection } from '../components/landing/TrustSection';
+import { TermsSection } from '../components/landing/TermsSection';
+import { WarrantySection } from '../components/landing/WarrantySection';
 import { useReveal } from '../hooks/useReveal';
 import '../styles/landing-redesign.css';
 import '../styles/hero-motion.css';
@@ -25,11 +30,16 @@ export function LandingPage() {
         <HeroSection />
         <TrustSection />
         <ServicesSection />
+        <CaseStoriesSection />
+        <RecoverySupportSection />
         <ProcessSection />
+        <AboutSection />
         <ProductsSection />
         <RepairTracker />
         <BrandsSection />
+        <WarrantySection />
         <FaqSection />
+        <TermsSection />
         <FinalCtaSection />
       </main>
       <Footer />

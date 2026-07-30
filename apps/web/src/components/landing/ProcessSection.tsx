@@ -16,7 +16,7 @@ export function ProcessSection() {
           <p className="lp-eyebrow">Cómo trabajamos</p>
           <h2 id="process-title">Tu equipo no entra a una caja negra.</h2>
         </div>
-        <p>Sabes qué encontramos, qué vamos a hacer, cuánto cuesta y qué garantía aplica antes de iniciar.</p>
+        <p>Cada paso reduce incertidumbre: recibimos, comprobamos, explicamos, reparamos y validamos contigo.</p>
       </div>
 
       <div
@@ -24,13 +24,14 @@ export function ProcessSection() {
         ref={ref}
         style={{ '--process-progress': progress.toFixed(3) } as ProcessStyle}
       >
-        {processSteps.map(([number, title, copy], index) => (
+        {processSteps.map(([number, title, copy, time], index) => (
           <article className="lp-process__step" data-reveal key={number} style={{ transitionDelay: `${index * 55}ms` }}>
             <span>{number}</span>
             <div>
               <h3>{title}</h3>
               <p>{copy}</p>
             </div>
+            <small>{time}</small>
           </article>
         ))}
       </div>

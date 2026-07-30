@@ -1,18 +1,19 @@
 export const trustPoints = [
-  'Diagnóstico claro',
-  'Precio antes de reparar',
-  'Garantía por escrito',
-  'Sin piezas innecesarias',
-  'Atención directa',
+  { value: '01', title: 'Diagnóstico primero', copy: 'Revisamos la causa antes de ofrecer una pieza.' },
+  { value: '02', title: 'Precio autorizado', copy: 'Sabes cuánto cuesta antes de iniciar el trabajo.' },
+  { value: '03', title: 'Seguimiento real', copy: 'Tu reparación queda registrada con un folio.' },
+  { value: '04', title: 'Garantía clara', copy: 'El alcance se explica y queda por escrito.' },
 ];
 
 export const services = [
-  { title: 'Cambio de pantalla', description: 'Revisamos táctil, brillo, colores y marco antes de confirmar la refacción adecuada.', chip: 'Según modelo' },
-  { title: 'Batería', description: 'Medimos consumo y carga para saber si el problema es batería, centro de carga o sistema.', chip: 'Prueba previa' },
-  { title: 'Centro de carga', description: 'Diagnóstico de conector, flex, soldadura y entrada de voltaje antes de cambiar piezas.', chip: 'Revisión técnica' },
-  { title: 'Bocina y micrófono', description: 'Limpieza, prueba de audio y validación de componentes para llamadas y multimedia.', chip: 'Garantía' },
-  { title: 'Diagnóstico', description: 'Abrimos una ruta clara: falla, opciones, costo, tiempo estimado y garantía aplicable.', chip: 'Sin rodeos' },
-  { title: 'Instalación de mica', description: 'Mica colocada con limpieza previa y ajuste correcto para proteger sin perder sensibilidad.', chip: 'Mismo día' },
+  { code: 'SCR', title: 'Pantalla y display', description: 'Táctil, imagen, brillo, marco y compatibilidad de la refacción.', chip: 'Frecuente · mismo día*' },
+  { code: 'PWR', title: 'Batería y carga', description: 'Consumo, batería, conector, flex y entrada de voltaje.', chip: 'Medición previa' },
+  { code: 'AUD', title: 'Audio y micrófono', description: 'Bocinas, auricular, micrófonos y calidad de llamada.', chip: 'Prueba funcional' },
+  { code: 'CAM', title: 'Cámara y sensores', description: 'Enfoque, estabilización, proximidad, biometría y módulos.', chip: 'Según modelo' },
+  { code: 'SYS', title: 'Software y soporte', description: 'Actualización, restablecimiento, respaldo y diagnóstico del sistema.', chip: 'Con autorización' },
+  { code: 'NET', title: 'Liberación y red', description: 'Revisión de compatibilidad, desbloqueo permitido y configuración de conectividad.', chip: 'Caso por caso' },
+  { code: 'WTR', title: 'Humedad y placa', description: 'Limpieza técnica, corrosión, corto y diagnóstico electrónico.', chip: 'Atención prioritaria' },
+  { code: 'PRT', title: 'Protección y accesorios', description: 'Micas, fundas, cables, cargadores y accesorios de uso diario.', chip: 'Instalación en tienda' },
 ];
 
 export const featuredProducts = [
@@ -23,11 +24,11 @@ export const featuredProducts = [
 ];
 
 export const processSteps = [
-  ['01', 'Recibimos el equipo', 'Registramos modelo, falla reportada y condiciones visibles.'],
-  ['02', 'Diagnosticamos', 'Probamos funciones, carga, pantalla, audio y componentes según el caso.'],
-  ['03', 'Te explicamos y cotizamos', 'Confirmas precio y alcance antes de que toquemos la reparación.'],
-  ['04', 'Reparamos', 'Trabajamos con piezas adecuadas y cuidamos evidencia del servicio.'],
-  ['05', 'Entregamos con garantía', 'Validamos funciones contigo y dejamos garantía por escrito.'],
+  ['01', 'Recibimos', 'Registramos tu equipo, la falla reportada y sus condiciones visibles.', '5–10 min'],
+  ['02', 'Diagnosticamos', 'Probamos funciones y aislamos la causa antes de cambiar componentes.', 'Según falla'],
+  ['03', 'Cotizamos', 'Te explicamos opciones, precio, tiempo y garantía. Tú decides.', 'Sin sorpresas'],
+  ['04', 'Reparamos', 'Trabajamos únicamente después de recibir tu autorización.', 'Mismo día*'],
+  ['05', 'Probamos y entregamos', 'Validamos el resultado contigo y documentamos el servicio.', 'Con folio'],
 ] as const;
 
 export const quoteIssues = [
@@ -97,4 +98,19 @@ export const faqs = [
   ['agua', '¿Qué hago si se mojó mi celular?', 'No lo cargues. Apágalo si puedes y tráelo cuanto antes para limpieza y revisión de placa.'],
   ['pieza', '¿Usan piezas originales?', 'Te explicamos opciones disponibles: original, compatible premium o alternativa según presupuesto y modelo.'],
   ['folio', '¿Puedo rastrear mi equipo?', 'Sí. Cuando tu equipo entra al taller, se genera un folio para consultar el avance.'],
+] as const;
+
+export const capabilityGroups = [
+  {
+    title: 'Reparamos',
+    items: ['Pantalla y táctil', 'Batería y carga', 'Cámaras y sensores', 'Audio y micrófonos'],
+  },
+  {
+    title: 'Recuperamos',
+    items: ['Daño por humedad', 'Fallas de placa', 'Equipos que no encienden', 'Errores de sistema'],
+  },
+  {
+    title: 'Configuramos',
+    items: ['Actualización y respaldo', 'Liberación compatible', 'Red y conectividad', 'Transferencia de información'],
+  },
 ] as const;

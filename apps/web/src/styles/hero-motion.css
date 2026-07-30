@@ -1,219 +1,52 @@
-/* Responsive motion system for the CelLab hero.
-   Desktop is cinematic; tablet is restrained; mobile is conversion-first. */
+.lp-hero-enter-1,
+.lp-hero-enter-2,
+.lp-hero-enter-3,
+.lp-hero-enter-4,
+.lp-hero-enter-5 {
+  animation: lp-content-enter .75s cubic-bezier(.22, 1, .36, 1) both;
+}
+.lp-hero-enter-2 { animation-delay: .08s; }
+.lp-hero-enter-3 { animation-delay: .16s; }
+.lp-hero-enter-4 { animation-delay: .24s; }
+.lp-hero-enter-5 { animation-delay: .34s; }
 
-@media (min-width: 1024px) {
-  .lp-hero.lp-hero--scene {
-    --hero-motion-scale: 1;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage {
-    pointer-events: auto;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage::before,
-  .lp-hero.lp-hero--scene .lp-phone-stage::after,
-  .lp-hero.lp-hero--scene .lp-phone-stage__meta,
-  .lp-hero.lp-hero--scene .lp-phone-stage__caption {
-    display: block;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-layer {
-    will-change: transform, opacity;
-  }
-
-  .lp-hero.lp-hero--scene .lp-layer-connectors path {
-    animation: lp-connector-dash 7s linear infinite;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-light {
-    animation: lp-bench-light 8s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
+.lp-frame-stage {
+  animation: lp-stage-enter .95s .2s cubic-bezier(.22,1,.36,1) both;
+}
+.lp-frame-stage::before {
+  animation: lp-stage-breathe 5s 1.2s ease-in-out infinite alternate;
+}
+.lp-nav__brand svg {
+  transition: transform .4s cubic-bezier(.22,1,.36,1);
+}
+.lp-nav__brand:hover svg {
+  transform: rotate(-4deg) scale(1.06);
 }
 
-@keyframes lp-connector-dash {
-  to {
-    stroke-dashoffset: -84;
-  }
+@keyframes lp-content-enter {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
 }
-
-@keyframes lp-bench-light {
-  0%, 100% {
-    opacity: .88;
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: translateY(-8px) scale(1.015);
-  }
+@keyframes lp-stage-enter {
+  from { opacity: 0; transform: translateX(26px) scale(.97); }
+  to { opacity: 1; transform: none; }
 }
-
-@media (min-width: 768px) and (max-width: 1023px) {
-  .lp-hero.lp-hero--scene {
-    min-height: 760px;
-    padding: 92px 34px 76px;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage {
-    pointer-events: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage::before {
-    width: 68vw;
-    height: 560px;
-    right: -12vw;
-    bottom: 90px;
-    opacity: .48;
-    background-size: auto, 42px 42px, 42px 42px;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage::after,
-  .lp-hero.lp-hero--scene .lp-phone-stage__caption {
-    display: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage__meta {
-    right: 32px;
-    width: 330px;
-    opacity: .34;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-svg {
-    top: 46%;
-    right: -210px;
-    width: min(94vw, 760px);
-    max-height: 620px;
-    opacity: .48;
-    filter: saturate(.88) contrast(1);
-  }
-
-  .lp-hero.lp-hero--scene .lp-layer-shields,
-  .lp-hero.lp-hero--scene .lp-layer-connectors {
-    display: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-layer {
-    animation-duration: .95s, 8s;
-    animation-timing-function: cubic-bezier(.22, 1, .36, 1), ease-in-out;
-  }
-
-  .lp-hero__overlay {
-    background:
-      linear-gradient(90deg, rgba(3, 9, 11, .94) 0%, rgba(3, 9, 11, .82) 54%, rgba(3, 9, 11, .34) 100%),
-      linear-gradient(180deg, rgba(3, 9, 11, .12), rgba(3, 9, 11, .82));
-  }
-
-  .lp-hero__content {
-    max-width: 680px;
-    align-items: flex-start;
-    text-align: left;
-  }
-}
-
-@media (max-width: 767px) {
-  .lp-hero.lp-hero--scene {
-    min-height: calc(100svh - 76px);
-    padding: 64px 20px 34px;
-    align-items: end;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage {
-    pointer-events: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage::before {
-    width: 86vw;
-    height: 46vh;
-    right: -26vw;
-    bottom: 34vh;
-    opacity: .26;
-    background:
-      linear-gradient(rgba(159, 205, 191, .045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(159, 205, 191, .045) 1px, transparent 1px);
-    background-size: 46px 46px;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-stage::after,
-  .lp-hero.lp-hero--scene .lp-phone-stage__meta,
-  .lp-hero.lp-hero--scene .lp-phone-stage__caption {
-    display: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-svg {
-    top: 27%;
-    right: -235px;
-    width: min(148vw, 660px);
-    max-height: 52vh;
-    opacity: .24;
-    filter: none;
-    transform: translateY(-50%) perspective(900px);
-  }
-
-  .lp-hero.lp-hero--scene .lp-layer-board,
-  .lp-hero.lp-hero--scene .lp-layer-shields,
-  .lp-hero.lp-hero--scene .lp-layer-connectors {
-    display: none;
-  }
-
-  .lp-hero.lp-hero--scene .lp-phone-layer {
-    animation: lp-mobile-assemble .58s cubic-bezier(.22, 1, .36, 1) both;
-  }
-
-  .lp-hero.lp-hero--scene .lp-layer-chassis { --mobile-x: 26px; --mobile-y: 18px; animation-delay: .06s; }
-  .lp-hero.lp-hero--scene .lp-layer-battery { --mobile-x: 34px; --mobile-y: 22px; animation-delay: .12s; }
-  .lp-hero.lp-hero--scene .lp-layer-display { --mobile-x: 20px; --mobile-y: -22px; animation-delay: .18s; }
-  .lp-hero.lp-hero--scene .lp-layer-glass { --mobile-x: -18px; --mobile-y: -34px; animation-delay: .24s; }
-
-  .lp-hero.lp-hero--scene .lp-glass-sheen,
-  .lp-hero.lp-hero--scene .lp-phone-light {
-    animation: none;
-  }
-
-  .lp-hero__overlay {
-    background:
-      linear-gradient(180deg, rgba(3, 9, 11, .18) 0%, rgba(3, 9, 11, .72) 43%, rgba(3, 9, 11, .96) 100%),
-      linear-gradient(90deg, rgba(3, 9, 11, .84), rgba(3, 9, 11, .32));
-  }
-
-  .lp-hero__content {
-    width: 100%;
-    max-width: 520px;
-    align-items: flex-start;
-    text-align: left;
-  }
-
-  .lp-hero.lp-hero--scene h1 {
-    max-width: 430px;
-  }
-
-  .lp-hero.lp-hero--scene .lp-hero__service-line {
-    margin-top: 18px;
-    max-width: 310px;
-    opacity: .82;
-  }
-}
-
-@keyframes lp-mobile-assemble {
-  from {
-    opacity: 0;
-    transform: translate3d(var(--mobile-x), var(--mobile-y), 0) scale(.985);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
+@keyframes lp-stage-breathe {
+  from { border-color: rgba(199,241,223,.12); }
+  to { border-color: rgba(199,241,223,.3); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-hero.lp-hero--scene .lp-phone-layer,
-  .lp-hero.lp-hero--scene .lp-layer-connectors path,
-  .lp-hero.lp-hero--scene .lp-phone-light,
-  .lp-hero.lp-hero--scene .lp-glass-sheen {
+  .lp-hero-enter-1,
+  .lp-hero-enter-2,
+  .lp-hero-enter-3,
+  .lp-hero-enter-4,
+  .lp-hero-enter-5,
+  .lp-frame-stage,
+  .lp-frame-stage::before {
     animation: none !important;
+    opacity: 1;
+    transform: none;
   }
-
-  .lp-hero.lp-hero--scene .lp-phone-svg {
-    transform: translateY(-50%) !important;
-  }
+  .lp-nav__brand svg { transition: none; }
 }

@@ -37,10 +37,10 @@ export function BrandsSection() {
     <section className="lp-section lp-brands" id="marcas" aria-labelledby="brands-title">
       <div className="lp-section-head lp-section-head--split" data-reveal>
         <div>
-          <p className="lp-eyebrow">Marcas atendidas</p>
-          <h2 id="brands-title">Dinos qué equipo tienes. Llegamos mejor preparados.</h2>
+          <p className="lp-eyebrow">Cotizador guiado</p>
+          <h2 id="brands-title">Selecciona tu equipo. Nosotros hacemos las preguntas correctas.</h2>
         </div>
-        <p>Elige marca, modelo y falla. Dejamos listo el mensaje para WhatsApp con la información que el técnico sí necesita.</p>
+        <p>Reparamos, configuramos y revisamos liberación en las marcas más comunes. Elige modelo y falla para preparar un mensaje útil para el técnico.</p>
       </div>
 
       <div className="lp-brand-lab" data-reveal>
@@ -55,7 +55,7 @@ export function BrandsSection() {
 
         <div className="lp-brand-panel" role="tabpanel" aria-live="polite">
           <div className="lp-brand-panel__intro">
-            <span>{activeBrand.name}</span>
+            <span>Marca seleccionada · {activeBrand.name}</span>
             <h3>{activeBrand.family}</h3>
             <p>{activeBrand.note}</p>
           </div>
@@ -67,7 +67,7 @@ export function BrandsSection() {
           </div>
 
           <div className="lp-choice-block">
-            <h4>Modelo común</h4>
+            <h4>1. ¿Cuál es tu modelo?</h4>
             <div className="lp-model-grid">
               {activeBrand.models.map((model) => (
                 <button type="button" key={model} className={selectedModel === model ? 'is-selected' : ''} aria-pressed={selectedModel === model} onClick={() => { setSelectedModel(model); setSelectedIssue(''); }}>
@@ -78,7 +78,7 @@ export function BrandsSection() {
           </div>
 
           <div className={selectedModel ? 'lp-choice-block' : 'lp-choice-block is-disabled'}>
-            <h4>Falla principal</h4>
+            <h4>2. ¿Qué problema presenta?</h4>
             <div className="lp-issue-grid">
               {quoteIssues.map((issue) => (
                 <button type="button" key={issue} disabled={!selectedModel} className={selectedIssue === issue ? 'is-selected' : ''} aria-pressed={selectedIssue === issue} onClick={() => setSelectedIssue(issue)}>
@@ -90,7 +90,7 @@ export function BrandsSection() {
 
           <div className={selectedIssue ? 'lp-quote-ready is-ready' : 'lp-quote-ready'}>
             <div>
-              <span>{selectedIssue ? 'Mensaje listo' : 'Completa modelo y falla'}</span>
+              <span>{selectedIssue ? 'Diagnóstico inicial listo' : 'Completa los dos pasos'}</span>
               <strong>{selectedModel && selectedIssue ? `${activeBrand.name} · ${selectedModel} · ${selectedIssue}` : 'Te guiamos en menos de un minuto'}</strong>
             </div>
             <a className="lp-button lp-button--primary" href={quoteLink} target={quoteLink.startsWith('http') ? '_blank' : undefined} rel={quoteLink.startsWith('http') ? 'noreferrer' : undefined}>

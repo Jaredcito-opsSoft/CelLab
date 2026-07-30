@@ -24,7 +24,7 @@ export function Footer() {
 
   return (
     <footer className="lp-footer" id="contacto">
-      <div className="lp-footer__top">
+      <div className="lp-footer__top" data-reveal>
         <div className="lp-footer__brand">
           <LogoIcon size={44} inverted />
           <div>
@@ -32,40 +32,56 @@ export function Footer() {
             <span>Servicio técnico local · {profile?.city ?? 'Tuxtla Gutiérrez'}, {profile?.state ?? 'Chiapas'}</span>
           </div>
         </div>
+        <div className="lp-footer__availability">
+          <span aria-hidden="true" />
+          Atención local y directa
+        </div>
+      </div>
+
+      <div className="lp-footer__statement" data-reveal>
+        <div>
+          <span>Tu equipo merece una respuesta clara</span>
+          <h2>Reparamos con proceso, evidencia y seguimiento.</h2>
+        </div>
         <a className="lp-footer__cta" href={whatsappLink} target={whatsappLink.startsWith('http') ? '_blank' : undefined} rel={whatsappLink.startsWith('http') ? 'noreferrer' : undefined}>
           Cotizar reparación <ArrowIcon />
         </a>
       </div>
 
-      <div className="lp-footer__statement">
-        <span>Ficha de cierre</span>
-        <p>Reparamos con folio, diagnóstico claro y garantía por escrito antes de entregar tu equipo.</p>
-      </div>
-
-      <div className="lp-footer__grid">
+      <div className="lp-footer__grid" data-reveal>
         <nav className="lp-footer__links" aria-label="Links de pie de página">
-          <span>Navegación</span>
+          <span>Explorar</span>
           <a href="#servicios">Servicios</a>
           <a href="#proceso">Proceso</a>
-          <a href="#rastrear">Rastreo</a>
           <a href="#marcas">Marcas</a>
-          <a href="#faq">FAQ</a>
+          <a href="#casos">Casos reales</a>
+        </nav>
+        <nav className="lp-footer__links" aria-label="Soporte y condiciones">
+          <span>Soporte</span>
+          <a href="#rastrear">Rastrear equipo</a>
+          <a href="#garantias">Garantías</a>
+          <a href="#faq">Preguntas frecuentes</a>
+          <a href="#terminos">Términos y condiciones</a>
         </nav>
         <address className="lp-footer__contact">
-          <span>Contacto</span>
+          <span>Visítanos</span>
           <p>{location}</p>
           {phoneLabel ? <a href={phoneLink}>{phoneLabel}</a> : <p>Teléfono por configurar</p>}
+          <a href={whatsappLink} target={whatsappLink.startsWith('http') ? '_blank' : undefined} rel={whatsappLink.startsWith('http') ? 'noreferrer' : undefined}>
+            Abrir WhatsApp
+          </a>
         </address>
         <div className="lp-footer__promise" aria-label="Compromisos del taller">
-          <span>Compromiso</span>
-          <p>Precio antes de reparar</p>
-          <p>Rastreo por folio</p>
-          <p>Garantía según servicio</p>
+          <span>Trabajamos así</span>
+          <p><b>01</b> Precio antes de reparar</p>
+          <p><b>02</b> Rastreo por folio</p>
+          <p><b>03</b> Garantía por escrito</p>
         </div>
       </div>
 
       <div className="lp-footer__bottom">
-        <span>© {year} {businessName}</span>
+        <span>© {year} {businessName} · Tuxtla Gutiérrez</span>
+        <span className="lp-footer__atria">CelLab es una marca de <strong>ATRIA</strong></span>
         <a href="#inicio">Volver arriba <ArrowIcon /></a>
       </div>
     </footer>

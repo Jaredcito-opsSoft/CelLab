@@ -3,13 +3,32 @@ import { ChevronRight, MessageCircle, Send, X } from 'lucide-react';
 import type { ChatMessage, ChatStep } from '../types';
 import { BRANDS, SERVICES } from '../types';
 import { buildWhatsappLink, useBusinessProfile, type BusinessProfile } from '../hooks/useBusinessProfile';
+import { brands } from './landing/landingData';
 
 const BOT_NAME = 'CelBot';
 let msgId = 0;
 
-function buildWaLink(profile: BusinessProfile | null, brand: string, service: string): string {
-  const msg = `Hola CelLab Tuxtla\n\nNecesito ayuda con mi ${brand}.\nProblema: ${service}.\n\n¿Pueden atenderme?`;
+function buildWaLink(profile: BusinessProfile | null, brand: string, model: string, service: string): string {
+  const msg = `Hola CelLab Tuxtla\n\nNecesito ayuda con mi ${brand} ${model}.\nProblema: ${service}.\n\n¿Pueden confirmarme disponibilidad, tiempo aproximado y cómo llevarlo a diagnóstico?`;
   return buildWhatsappLink(profile, msg) ?? '#contacto';
+}
+
+function modelOptions(brandName: string): ChatMessage['options'] {
+  const normalized = brandName.toLowerCase();
+  const match = brands.find((brand) =>
+    brand.name.toLowerCase().includes(normalized) ||
+    normalized.includes(brand.name.toLowerCase().split(' ')[0]),
+  );
+
+  const commonModels = match
+    ? [...match.models.slice(0, 9), match.models.at(-1)!].filter((model, index, items) => items.indexOf(model) === index)
+    : ['No sé el modelo'];
+
+  return commonModels.map((model) => ({
+    label: model,
+    value: model,
+    emoji: '·',
+  }));
 }
 
 function makeBot(content: string, options?: ChatMessage['options']): ChatMessage {
@@ -32,7 +51,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
   const isBot = msg.role === 'bot';
   return (
     <div className={`cw-bubble-wrap ${isBot ? 'cw-bubble-wrap--bot' : 'cw-bubble-wrap--user'}`}>
-      {isBot && <div className="cw-avatar" aria-hidden="true">🤖</div>}
+      {isBot && <div className="cw-avatar" aria-hidden="true">CL</div>}
       <div className={`cw-bubble ${isBot ? 'cw-bubble--bot' : 'cw-bubble--user'}`}>{msg.content}</div>
     </div>
   );
@@ -58,6 +77,7 @@ export function ChatbotWidget() {
   const [step, setStep] = useState<ChatStep>('welcome');
   const [typing, setTyping] = useState(false);
   const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedModel, setSelectedModel] = useState('');
   const [optionsHistory, setOptionsHistory] = useState<Map<string, boolean>>(new Map());
   const bottomRef = useRef<HTMLDivElement>(null);
   const { profile, phoneLabel } = useBusinessProfile();
@@ -68,10 +88,11 @@ export function ChatbotWidget() {
       window.setTimeout(() => {
         setTyping(false);
         setMessages([
-          makeBot(`¡Hola! 👋 Soy ${BOT_NAME}, el asistente de CelLab Tuxtla.\n\n¿En qué te puedo ayudar hoy?`, [
-            { label: 'Reparar mi equipo', value: 'repair', emoji: '🔧' },
+          makeBot(`Hola, soy ${BOT_NAME}.\n\nEn menos de un minuto preparo los datos que necesita el técnico. ¿Qué quieres hacer?`, [
+            { label: 'Cotizar una reparación', value: 'repair', emoji: '🔧' },
+            { label: 'Rastrear mi reparación', value: '#rastrear', emoji: '⌁' },
             { label: 'Duda de garantía', value: 'guarantee', emoji: '🛡️' },
-            { label: 'Hablar con un técnico', value: 'tech', emoji: '👨‍🔧' },
+            { label: 'Hablar con un técnico', value: 'tech', emoji: '↗' },
           ]),
         ]);
         setStep('select_intent');
@@ -101,6 +122,11 @@ export function ChatbotWidget() {
       window.open(value, '_blank', 'noopener,noreferrer');
       return;
     }
+    if (value.startsWith('#')) {
+      document.querySelector(value)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setOpen(false);
+      return;
+    }
 
     if (step === 'select_intent') {
       if (value === 'repair') {
@@ -119,13 +145,17 @@ export function ChatbotWidget() {
       }
     } else if (step === 'select_brand') {
       setSelectedBrand(value);
+      setStep('select_model');
+      botReply(`Perfecto. ¿Qué modelo de ${value} tienes?`, modelOptions(value));
+    } else if (step === 'select_model') {
+      setSelectedModel(value);
       setStep('select_service');
-      botReply(`¿Cuál es el problema con tu ${value}?`, SERVICES);
+      botReply(`¿Qué problema presenta tu ${selectedBrand} ${value}?`, SERVICES);
     } else if (step === 'select_service') {
       setStep('done');
-      const waLink = buildWaLink(profile, selectedBrand, value);
-      botReply(`Perfecto. Preparo tu mensaje:\n\n📱 ${selectedBrand} · ${label.replace(/^[^\s]+ /, '')}\n\nToca el botón para enviarlo por WhatsApp.`, [
-        { label: 'Enviar a WhatsApp', value: waLink, emoji: '💬' },
+      const waLink = buildWaLink(profile, selectedBrand, selectedModel, value);
+      botReply(`Listo. El técnico recibirá:\n\n${selectedBrand} · ${selectedModel}\n${label.replace(/^[^\s]+ /, '')}\n\nAbre WhatsApp para enviar y agregar una foto si ayuda a mostrar la falla.`, [
+        { label: 'Enviar diagnóstico inicial', value: waLink, emoji: '↗' },
       ]);
     } else if (step === 'guarantee_info') {
       const link = buildWhatsappLink(profile, value === 'tech' ? 'Hola CelLab Tuxtla, tengo una pregunta sobre garantía.' : 'Hola CelLab Tuxtla, tengo una duda.') ?? '#contacto';
@@ -137,6 +167,7 @@ export function ChatbotWidget() {
     setMessages([]);
     setStep('welcome');
     setSelectedBrand('');
+    setSelectedModel('');
     setOptionsHistory(new Map());
     msgId = 0;
   };
@@ -152,7 +183,7 @@ export function ChatbotWidget() {
         <div className="cw-window" role="dialog" aria-label="Asistente CelBot" aria-modal="false">
           <div className="cw-header">
             <div className="cw-header__info">
-              <div className="cw-header__avatar" aria-hidden="true">🤖</div>
+              <div className="cw-header__avatar" aria-hidden="true">CL</div>
               <div>
                 <div className="cw-header__name">{BOT_NAME}</div>
                 <div className="cw-header__status"><span className="cw-header__dot" aria-hidden="true" /> En línea</div>

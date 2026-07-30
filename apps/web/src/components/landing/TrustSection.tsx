@@ -2,11 +2,14 @@ import { trustPoints } from './landingData';
 
 export function TrustSection() {
   return (
-    <section className="lp-trust" aria-label="Confianza inmediata">
+    <section className="lp-trust" aria-label="Compromisos del servicio">
       {trustPoints.map((point, index) => (
-        <article className="lp-trust__item" data-reveal key={point} style={{ transitionDelay: `${index * 45}ms` }}>
-          <span>{String(index + 1).padStart(2, '0')}</span>
-          <strong>{point}</strong>
+        <article className="lp-trust__item" data-reveal key={point.title} style={{ transitionDelay: `${index * 45}ms` }}>
+          <span>{point.value}</span>
+          <div>
+            <strong>{point.title}</strong>
+            <p>{point.copy}</p>
+          </div>
         </article>
       ))}
     </section>

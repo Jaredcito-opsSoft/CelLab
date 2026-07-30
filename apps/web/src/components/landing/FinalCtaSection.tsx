@@ -8,8 +8,9 @@ export function FinalCtaSection() {
 
   return (
     <section className="lp-final-cta" aria-labelledby="final-cta-title">
-      <p className="lp-eyebrow">Antes de cambiarlo</p>
-      <h2 id="final-cta-title">Tu celular tiene solución. Cotiza antes de reemplazarlo.</h2>
+      <p className="lp-eyebrow">Una decisión informada</p>
+      <h2 id="final-cta-title">Antes de comprar otro, déjanos decirte si todavía vale la pena repararlo.</h2>
+      <p className="lp-final-cta__copy">Cuéntanos el modelo y la falla. Te orientamos por WhatsApp y confirmamos al revisar el equipo.</p>
       <div className="lp-final-cta__actions">
         <a className="lp-button lp-button--primary" href={whatsappLink} target={whatsappLink.startsWith('http') ? '_blank' : undefined} rel={whatsappLink.startsWith('http') ? 'noreferrer' : undefined}>
           <WhatsAppIcon /> Cotizar por WhatsApp

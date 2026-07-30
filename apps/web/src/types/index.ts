@@ -43,14 +43,14 @@ export interface ChatMessage {
   options?: ChatOption[];
 }
 
-export type ChatStep = 'welcome' | 'select_intent' | 'select_brand' | 'select_service' | 'guarantee_info' | 'tech_transfer' | 'done';
+export type ChatStep = 'welcome' | 'select_intent' | 'select_brand' | 'select_model' | 'select_service' | 'guarantee_info' | 'tech_transfer' | 'done';
 
 export const BRANDS: ChatOption[] = [
   { label: 'iPhone', value: 'iPhone', emoji: '🍎' },
   { label: 'Samsung', value: 'Samsung', emoji: '📱' },
   { label: 'Motorola', value: 'Motorola', emoji: '📲' },
-  { label: 'Huawei', value: 'Huawei', emoji: '📡' },
   { label: 'Xiaomi', value: 'Xiaomi', emoji: '📟' },
+  { label: 'OPPO', value: 'OPPO', emoji: '◉' },
   { label: 'Otro', value: 'Otro', emoji: '📦' },
 ];
 
@@ -60,5 +60,7 @@ export const SERVICES: ChatOption[] = [
   { label: 'No carga', value: 'reparación de puerto de carga', emoji: '🔌' },
   { label: 'Daño por agua', value: 'reparación por daño de agua', emoji: '💧' },
   { label: 'Software/Sistema', value: 'reparación de software', emoji: '⚙️' },
+  { label: 'Liberación o red', value: 'liberación o configuración de red', emoji: '📶' },
+  { label: 'PayJoy / MacroPay', value: 'orientación autorizada para recuperar o regularizar un equipo PayJoy o MacroPay; soy titular y cuento con documentación', emoji: '🧾' },
   { label: 'Otro problema', value: 'diagnóstico general', emoji: '🔧' },
 ];
